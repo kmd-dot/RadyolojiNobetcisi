@@ -1,0 +1,6 @@
+{
+  "name": "Aktif Radyoloji Nöbetçisi",
+  "description": "Acil servis ve hastane içi radyoloji nöbetçi doktor çağrı ve iletişim yönlendirme sistemi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
