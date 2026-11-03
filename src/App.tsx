@@ -2301,7 +2301,15 @@ export default function App() {
           </div>
         )}
       </main>
-
+{/* Micro-Footer Creator Credit */}
+      <footer className="w-full text-center py-6 mt-auto">
+        <p className="text-[11px] font-normal tracking-wide text-slate-600 selection:bg-transparent">
+          Designed with care by Halit{' '}
+          <span className="text-slate-700 mx-1">•</span>{' '}
+          <span className="text-slate-600">Düzce Radyoloji</span>
+        </p>
+      </footer>
+      
       {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
