@@ -89,13 +89,32 @@ export interface ExtractionResult {
 }
 
 // ============================================================================
-// FIREBASE SAFE INITIALIZATION & DUAL-SYNC ENGINE
+// FIREBASE CONFIG & INITIALIZATION
+// ============================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyByXQ_6GeH-efIRcIhZd10rrzrCXhoCqi0",
+  authDomain: "radyolojinobetcisi.firebaseapp.com",
+  projectId: "radyolojinobetcisi",
+  storageBucket: "radyolojinobetcisi.firebasestorage.app",
+  messagingSenderId: "883771809864",
+  appId: "1:883771809864:web:622c0cbdbea9729700387d"
+};
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// BroadcastChannel for instant cross-tab sync in hospital browser windows
+const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('radiology_router_channel') : null;
+
+// ============================================================================
+// DEFAULTS & STORAGE KEYS
 // ============================================================================
 const DEFAULT_DOCTORS: Doctor[] = [
   {
     id: 'doc-1',
-    name: 'Dr. Leyla Rostami',
-    phone: '+90 532 410 8821'
+    name: 'Dr. Halit Muhittin',
+    phone: '+90 532 000 0000'
   },
   {
     id: 'doc-2',
@@ -129,31 +148,12 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   lastUpdatedAt: Date.now()
 };
 
-// Local storage keys for tab sync & offline resilience
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
 const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v1';
-
-// Setup Firebase SDK
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "radyolojinobetcisi.firebaseapp.com",
-  projectId: "radyolojinobetcisi",
-  storageBucket: "radyolojinobetcisi.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_ID",
-  appId: "YOUR_APP_ID"
-};
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// BroadcastChannel for instant cross-tab sync in hospital browser windows
-const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('radiology_router_channel') : null;
 
 // ============================================================================
 // TIME & SCHEDULE HELPER FUNCTIONS
 // ============================================================================
-
 function timeToMinutes(timeStr: string): number {
   if (!timeStr || !timeStr.includes(':')) return 0;
   const [h, m] = timeStr.split(':').map(Number);
@@ -232,18 +232,8 @@ function cleanPhoneForWhatsApp(phone?: string): string {
 }
 
 const TURKISH_MONTHS = [
-  'ocak',
-  'şubat',
-  'mart',
-  'nisan',
-  'mayıs',
-  'haziran',
-  'temmuz',
-  'ağustos',
-  'eylül',
-  'ekim',
-  'kasım',
-  'aralık'
+  'ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran',
+  'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık'
 ];
 
 function normalizePersonName(nameStr: string): string {
@@ -497,7 +487,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Hospital Data State (Loaded from localStorage immediately, synced with Firestore if connected)
   const [doctors, setDoctors] = useState<Doctor[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_ROSTER_KEY);
@@ -523,25 +512,20 @@ export default function App() {
     return DEFAULT_SHIFT_STATE;
   });
 
-  // Live Clock State (updates every 10 seconds to trigger automatic handover)
   const [nowDate, setNowDate] = useState(() => new Date());
 
-  // View & Admin Mode State
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [viewMode, setViewMode] = useState<'er_caller' | 'admin_panel'>('er_caller');
   const [adminTab, setAdminTab] = useState<'shift_control' | 'roster' | 'share_security'>('shift_control');
 
-  // PIN Modal State
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
 
-  // Doctor Editor & Bulk Import Modals
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
-  // Smart Extractor State
   const [smartListText, setSmartListText] = useState('');
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
   const [pickedSlot1Id, setPickedSlot1Id] = useState('');
@@ -549,10 +533,8 @@ export default function App() {
   const [pickedActiveSlot, setPickedActiveSlot] = useState<number>(1);
   const [saveExtractedToRoster, setSaveExtractedToRoster] = useState(true);
 
-  // Admin PIN update draft
   const [newPinInput, setNewPinInput] = useState('');
 
-  // UI Feedback States
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -571,7 +553,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Cross-Tab / Window Broadcast Listener (Instant update across tabs without server latency)
+  // 2. Cross-Tab Listener
   useEffect(() => {
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === LOCAL_STORAGE_SHIFT_KEY && e.newValue) {
@@ -606,13 +588,17 @@ export default function App() {
     };
   }, []);
 
-  // 3. Optional Firebase Authentication & Firestore Listener (If provisioned)
+  // 3. Firebase Auth & Fail-safe screen unlock
   useEffect(() => {
     let isMounted = true;
     if (!auth || !db) {
       setLoading(false);
       return;
     }
+
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 2500);
 
     const initAuth = async () => {
       try {
@@ -623,7 +609,10 @@ export default function App() {
         }
       } catch (err) {
         console.error('Firebase Auth warning:', err);
-        if (isMounted) setSyncError('Canlı sunucu bağlantısı kurulamadı, yerel modda çalışıyor.');
+        if (isMounted) {
+          setSyncError('Canlı sunucu bağlantısı kurulamadı, yerel modda çalışıyor.');
+          setLoading(false);
+        }
       }
     };
 
@@ -632,19 +621,22 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (isMounted) {
         setUser(currentUser);
+        if (!currentUser) setLoading(false);
       }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
       unsubscribe();
     };
   }, []);
 
+  // 4. Firestore Real-time Snapshot Dual Sync
   useEffect(() => {
     if (!db || !user) return;
 
-    const appId = window.__app_id || 'radiology-oncall-router';
+    const appId = 'radyoloji-yonlendirici';
     const shiftDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'current_shift');
     const rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'department_roster');
 
@@ -696,7 +688,7 @@ export default function App() {
     };
   }, [user]);
 
-  // 4. Computed Active Shift Doctor
+  // 5. Computed Shift Doctor
   const shiftEvaluation = useMemo(() => {
     return evaluateActiveShiftSlot(shiftState, nowDate);
   }, [shiftState, nowDate]);
@@ -712,7 +704,7 @@ export default function App() {
   const activeDoctor =
     shiftEvaluation.activeSlot === 2 && !shiftState.singleDoctorMode ? slot2Doctor : slot1Doctor;
 
-  // 5. State Persistence & Broadcast Handlers
+  // 6. Persistence & Cloud Sync
   const saveShiftUpdate = async (partialUpdate: Partial<ShiftState>) => {
     const nextState: ShiftState = {
       ...shiftState,
@@ -722,7 +714,6 @@ export default function App() {
 
     setShiftState(nextState);
 
-    // Save locally & broadcast across browser tabs immediately
     try {
       localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(nextState));
       if (broadcastChannel) {
@@ -732,9 +723,8 @@ export default function App() {
       console.error('LocalStorage write error:', e);
     }
 
-    // If Firestore connected, sync to remote
     if (db && user) {
-      const appId = window.__app_id || 'radiology-oncall-router';
+      const appId = 'radyoloji-yonlendirici';
       const shiftDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'current_shift');
       try {
         await setDoc(shiftDocRef, nextState);
@@ -759,7 +749,7 @@ export default function App() {
     if (toastMsg) showToast(toastMsg, 'success');
 
     if (db && user) {
-      const appId = window.__app_id || 'radiology-oncall-router';
+      const appId = 'radyoloji-yonlendirici';
       const rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'department_roster');
       try {
         await setDoc(rosterDocRef, {
@@ -772,7 +762,7 @@ export default function App() {
     }
   };
 
-  // 1-Tap Active Switcher Handler
+  // 1-Tap Switcher
   const handleSelectActiveSlot = async (targetSlot: number) => {
     const targetDoc = targetSlot === 2 ? slot2Doctor : slot1Doctor;
     const evaluation = evaluateActiveShiftSlot(shiftState, nowDate);
@@ -790,10 +780,10 @@ export default function App() {
     }
 
     await saveShiftUpdate(updates);
-    showToast(`Aktif nöbetçi ${targetDoc?.name} olarak değiştirildi`, 'success');
+    showToast(`Çağrı yönlendirilen nöbetçi ${targetDoc?.name} olarak belirlendi`, 'success');
   };
 
-  // Smart List Extractor & Auto-Suggest
+  // Smart List Extractor
   const handleRunSmartExtraction = (inputTextOverride?: string) => {
     const textToParse = typeof inputTextOverride === 'string' ? inputTextOverride : smartListText;
     if (!textToParse || !textToParse.trim()) {
@@ -821,7 +811,6 @@ export default function App() {
     showToast(`${result.extractedDoctors.length} doktor çıkarıldı ve nöbetçi önerisi hazırlandı!`, 'success');
   };
 
-  // Sample Shift List Loader for instant testing
   const handleLoadSampleShiftList = () => {
     const d = nowDate;
     const dd = String(d.getDate()).padStart(2, '0');
@@ -834,19 +823,18 @@ export default function App() {
 
     const sample =
       `RADYOLOJİ NÖBET LİSTESİ VE TELEFONLAR\n` +
-      `${dd}.${mm}.${yyyy} (Bugün): Dr. Deniz Aksoy / Dr. Mert Kaya\n` +
-      `${dd2}.${mm2}.${yyyy}: Dr. Zeynep Yıldırım / Dr. Burak Demir\n\n` +
+      `${dd}.${mm}.${yyyy} (Bugün): Dr. Halit Muhittin / Dr. Kerem Alkan\n` +
+      `${dd2}.${mm2}.${yyyy}: Dr. Selin Demirci / Dr. Caner Özkan\n\n` +
       `DOKTOR İLETİŞİM NUMARALARI:\n` +
-      `Dr. Deniz Aksoy - 0532 481 92 10\n` +
-      `Dr. Mert Kaya - 0533 715 44 82\n` +
-      `Dr. Zeynep Yıldırım - +90 542 309 11 65\n` +
-      `Dr. Burak Demir - 0535 620 88 34`;
+      `Dr. Halit Muhittin - 0532 000 00 00\n` +
+      `Dr. Kerem Alkan - 0533 692 14 05\n` +
+      `Dr. Selin Demirci - +90 542 318 90 44\n` +
+      `Dr. Caner Özkan - 0535 811 23 90`;
 
     setSmartListText(sample);
     handleRunSmartExtraction(sample);
   };
 
-  // Apply Smart Extractor Selection
   const handleApplyExtractedSelection = async () => {
     if (!extractionResult || extractionResult.extractedDoctors.length === 0) return;
 
@@ -914,10 +902,9 @@ export default function App() {
     await saveShiftUpdate(shiftUpdates);
 
     const activeChosen = pickedActiveSlot === 2 ? chosenDoc2 : chosenDoc1;
-    showToast(`Nöbetçiler kaydedildi! Aktif çağrı alan doktor: ${activeChosen?.name}`, 'success');
+    showToast(`Nöbetçiler kaydedildi! Aramaları alan doktor: ${activeChosen?.name}`, 'success');
   };
 
-  // Clipboard Helper with execCommand fallback for seamless webview execution
   const copyToClipboard = (text: string, label = 'Numara kopyalandı!') => {
     try {
       const textArea = document.createElement('textarea');
@@ -938,7 +925,6 @@ export default function App() {
     }
   };
 
-  // Handle Admin PIN Form
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const expectedPin = shiftState.adminPin || '1234';
@@ -954,7 +940,6 @@ export default function App() {
     }
   };
 
-  // Bulk Roster Import
   const handleBulkImport = async () => {
     const lines = bulkText
       .split('\n')
@@ -989,7 +974,6 @@ export default function App() {
     setShowBulkModal(false);
   };
 
-  // Add / Edit Single Doctor
   const handleSaveDoctorForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDoctor || !editingDoctor.name.trim() || !editingDoctor.phone.trim()) {
@@ -1042,7 +1026,7 @@ export default function App() {
     const activePhone = activeDoctor?.phone || '';
 
     return (
-      `🏥 *AKTİF RADYOLOJİ NÖBETÇİSİ*\n\n` +
+      `🏥 *RADYOLOJİ NÖBETÇİSİ*\n\n` +
       `👨‍⚕️ *${activeName}*\n` +
       `📞 *${activePhone}*\n\n` +
       `🔗 Güncel nöbetçi doktor bağlantısı:\n${pageUrl}`
@@ -1055,7 +1039,7 @@ export default function App() {
         <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center animate-pulse mb-4">
           <Stethoscope className="w-7 h-7 text-emerald-400" />
         </div>
-        <h1 className="text-lg font-bold tracking-tight text-slate-100">Aktif Radyoloji Nöbetçisi</h1>
+        <h1 className="text-lg font-bold tracking-tight text-slate-100">Radyoloji Nöbetçisi</h1>
         <p className="text-xs text-slate-400 mt-1">Yükleniyor...</p>
       </div>
     );
@@ -1063,7 +1047,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
-      {/* Toast Notification */}
+      {/* Toast Bildirimleri */}
       {toast && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none">
           <div
@@ -1083,12 +1067,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Bar */}
+      {/* Üst Çubuk */}
       <header className="w-full max-w-xl mx-auto px-4 pt-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Stethoscope className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="text-xs sm:text-sm font-bold text-slate-300 tracking-tight">
-            Aktif Radyoloji Nöbetçisi
+            Radyoloji Nöbetçisi
           </span>
         </div>
 
@@ -1132,31 +1116,31 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Ana Ekran Alanı */}
       <main className="flex-1 flex flex-col justify-center max-w-xl w-full mx-auto px-4 py-6">
         {viewMode === 'er_caller' ? (
-          /* PUBLIC ER CALLER VIEW */
+          /* ACİL SERVİS / ER EKRANI */
           <div className="w-full">
             <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
-              {/* Badge */}
+              {/* Başlık Rozeti */}
               <div className="inline-flex items-center justify-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/30">
                 <span className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                 </span>
                 <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-emerald-300">
-                  Aktif Radyoloji Nöbetçisi
+                  Radyoloji Nöbetçisi
                 </span>
               </div>
 
-              {/* Doctor Name */}
+              {/* Doktor Adı */}
               <div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                   {activeDoctor?.name || 'Dr. —'}
                 </h1>
               </div>
 
-              {/* Phone & Copy Button */}
+              {/* Telefon & Kopyalama Butonu */}
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <a
                   href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
@@ -1188,7 +1172,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Call & WhatsApp Action Buttons */}
+              {/* Ara ve WhatsApp Butonları */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                 <a
                   href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
@@ -1211,16 +1195,16 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* ADMIN CONTROL PANEL VIEW */
+          /* YÖNETİCİ KONTROL PANELİ EKRANI */
           <div className="space-y-5">
-            {/* Admin Header Banner */}
+            {/* Yönetici Üst Banner */}
             <div className="rounded-2xl bg-slate-900 border border-indigo-500/40 p-4 sm:p-5 flex items-center justify-between gap-3">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
                   Yönetici Paneli
                 </span>
                 <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5">
-                  Şu An Aramaları Alan Aktif Nöbetçi:{' '}
+                  Şu An Çağrı Yönlendirilen Doktor:{' '}
                   <span className="text-emerald-400">{activeDoctor?.name}</span>
                 </h2>
               </div>
@@ -1238,7 +1222,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Admin Tabs */}
+            {/* Yönetici Sekmeleri */}
             <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
               <button
                 onClick={() => setAdminTab('shift_control')}
@@ -1277,10 +1261,10 @@ export default function App() {
               </button>
             </div>
 
-            {/* ADMIN TAB 1: SHIFT SELECTION & SMART EXTRACTOR */}
+            {/* SEKME 1: NÖBET SEÇİMİ & METİN ÇIKARICI */}
             {adminTab === 'shift_control' && (
               <div className="space-y-5">
-                {/* Smart List Extractor & Auto-Suggester Card */}
+                {/* Liste Çıkarıcı */}
                 <div className="rounded-3xl bg-gradient-to-br from-indigo-950/50 via-slate-900 to-slate-900 border border-indigo-500/40 p-5 space-y-4 shadow-xl">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -1292,7 +1276,7 @@ export default function App() {
                           <span>Listeden Otomatik Çıkar ve Nöbetçi Öner</span>
                         </h3>
                         <p className="text-xs text-slate-300 mt-0.5">
-                          WhatsApp mesajını, nöbet çizelgesini veya doktor telefon listesini aşağıya yapıştırın. Program isim ve telefonları otomatik ayıklar, bugünün 2 nöbetçisini önerir; siz de nöbetteki 2 kişiyi ve aktif aranacak doktoru seçersiniz.
+                          WhatsApp nöbet mesajını veya aylık nöbet listesini aşağıya yapıştırın. Sistem bugünün 2 nöbetçisini otomatik tespit eder.
                         </p>
                       </div>
                     </div>
@@ -1303,7 +1287,7 @@ export default function App() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 text-xs font-semibold transition-all shrink-0 cursor-pointer"
                     >
                       <FileText className="w-3.5 h-3.5 text-indigo-300" />
-                      <span>Örnek Nöbet Listesi Yükle</span>
+                      <span>Örnek Liste Yükle</span>
                     </button>
                   </div>
 
@@ -1312,7 +1296,7 @@ export default function App() {
                       rows={4}
                       value={smartListText}
                       onChange={(e) => setSmartListText(e.target.value)}
-                      placeholder={`Örnek yapıştırma formatları:\n03.11.2026: Dr. Leyla Rostami (0532 410 88 21) - Dr. Kerem Alkan (0533 692 14 05)\nveya nöbet tablosu + alt kısımda doktor telefon numaraları...`}
+                      placeholder={`Örnek liste formatı:\n03.11.2026: Dr. Halit Muhittin (0532 000 00 00) - Dr. Kerem Alkan (0533 692 14 05)\nveya doğrudan WhatsApp mesajını yapıştırın...`}
                       className="w-full rounded-2xl bg-slate-950/90 border border-slate-700/80 focus:border-indigo-400 p-3.5 text-xs sm:text-sm font-mono text-slate-100 placeholder:text-slate-500 focus:outline-none"
                     />
 
@@ -1324,7 +1308,7 @@ export default function App() {
                           onChange={(e) => setSaveExtractedToRoster(e.target.checked)}
                           className="rounded border-slate-700 text-indigo-500 focus:ring-0"
                         />
-                        <span>Çıkarılan doktorları ve numaraları kalıcı listeye de kaydet</span>
+                        <span>Çıkarılan doktorları kalıcı veritabanına ekle</span>
                       </label>
 
                       <div className="flex items-center gap-2">
@@ -1352,14 +1336,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 3-Step Interactive Confirmation */}
+                  {/* 3 Adımlı Onay Kutusu */}
                   {extractionResult && extractionResult.extractedDoctors.length > 0 && (
                     <div className="rounded-2xl bg-slate-950/90 border border-indigo-500/40 p-4 space-y-4 mt-2">
-                      {/* Step 1 */}
                       <div className="space-y-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300">
-                            1. Adım: Çıkarılan Doktorlar ({extractionResult.extractedDoctors.length}) ve Otomatik Öneri
+                            1. Adım: Çıkarılan Doktorlar ({extractionResult.extractedDoctors.length})
                           </span>
                           {extractionResult.suggestionReason && (
                             <span className="text-[11px] font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full">
@@ -1431,16 +1414,16 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Step 2 */}
+                      {/* 2. Adım */}
                       <div className="space-y-2.5 pt-3 border-t border-slate-800">
                         <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300 block">
-                          2. Adım: Nöbetteki 2 Doktoru Onaylayın veya Değiştirin
+                          2. Adım: Nöbetteki 2 Doktoru Doğrulayın
                         </span>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5">
                             <label className="text-[11px] font-bold text-slate-400 block">
-                              1. Nöbetçi Doktor (Önerilen)
+                              1. Nöbetçi Doktor
                             </label>
                             <select
                               value={pickedSlot1Id}
@@ -1457,7 +1440,7 @@ export default function App() {
 
                           <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5">
                             <label className="text-[11px] font-bold text-slate-400 block">
-                              2. Nöbetçi Doktor (Önerilen)
+                              2. Nöbetçi Doktor
                             </label>
                             <select
                               value={pickedSlot2Id}
@@ -1474,27 +1457,21 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Step 3 */}
+                      {/* 3. Adım */}
                       <div className="space-y-3 pt-3 border-t border-slate-800">
                         <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 block">
-                          3. Adım: Şu An Aktif Çağrı Alacak Doktoru Seçin
+                          3. Adım: Şu Anda Çağrı Yönlendirilecek Doktoru Belirleyin
                         </span>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {[
                             {
                               slot: 1,
-                              doc:
-                                extractionResult.extractedDoctors.find(
-                                  (d) => d.id === pickedSlot1Id
-                                ) || extractionResult.extractedDoctors[0]
+                              doc: extractionResult.extractedDoctors.find((d) => d.id === pickedSlot1Id) || extractionResult.extractedDoctors[0]
                             },
                             {
                               slot: 2,
-                              doc:
-                                extractionResult.extractedDoctors.find(
-                                  (d) => d.id === pickedSlot2Id
-                                ) || extractionResult.extractedDoctors[0]
+                              doc: extractionResult.extractedDoctors.find((d) => d.id === pickedSlot2Id) || extractionResult.extractedDoctors[0]
                             }
                           ].map(({ slot, doc }) => {
                             const isSelectedActive = pickedActiveSlot === slot;
@@ -1528,7 +1505,7 @@ export default function App() {
                                       : 'bg-slate-800 text-slate-400'
                                   }`}
                                 >
-                                  {isSelectedActive ? 'Aktif Çağrı Alan' : 'Bu Doktoru Seç'}
+                                  {isSelectedActive ? 'Çağrı Alan Doktor' : 'Bu Doktoru Seç'}
                                 </div>
                               </button>
                             );
@@ -1541,22 +1518,22 @@ export default function App() {
                           className="w-full py-3.5 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
                         >
                           <UserCheck className="w-5 h-5 stroke-[2.5]" />
-                          <span>Nöbetçileri Onayla ve Seçilen Doktoru Acil Ekranında Göster</span>
+                          <span>Seçilen Doktoru Acil Ekranında Göster</span>
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* 2 Doctors on Duty & 1-Tap Switcher */}
+                {/* 2 Nöbetçi & Hızlı Değiştirici */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-base font-bold text-white">
-                        Nöbetçi Doktorlar ve Aktif Kişi Seçimi
+                        Nöbetçi Doktorlar ve Yönlendirme Seçimi
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Nöbetteki 2 doktoru seçin ve acilin kimi arayacağını tek dokunuşla belirleyin.
+                        Aramaların iletileceği doktoru tek dokunuşla belirleyin.
                       </p>
                     </div>
 
@@ -1564,21 +1541,15 @@ export default function App() {
                       <input
                         type="checkbox"
                         checked={shiftState.singleDoctorMode}
-                        onChange={(e) =>
-                          saveShiftUpdate({ singleDoctorMode: e.target.checked })
-                        }
+                        onChange={(e) => saveShiftUpdate({ singleDoctorMode: e.target.checked })}
                         className="rounded border-slate-700 text-indigo-500 focus:ring-0"
                       />
                       <span>Tek Nöbetçi Modu</span>
                     </label>
                   </div>
 
-                  <div
-                    className={`grid grid-cols-1 ${
-                      shiftState.singleDoctorMode ? '' : 'sm:grid-cols-2'
-                    } gap-4`}
-                  >
-                    {/* Slot 1 Doctor */}
+                  <div className={`grid grid-cols-1 ${shiftState.singleDoctorMode ? '' : 'sm:grid-cols-2'} gap-4`}>
+                    {/* 1. Doktor */}
                     <div
                       className={`rounded-2xl p-4 border-2 transition-all flex flex-col justify-between gap-4 ${
                         shiftEvaluation.activeSlot === 1
@@ -1594,16 +1565,14 @@ export default function App() {
                           {shiftEvaluation.activeSlot === 1 && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-slate-950">
                               <Check className="w-3 h-3 stroke-[3]" />
-                              EKRANDA AKTİF
+                              EKRANDA GÖSTERİLİYOR
                             </span>
                           )}
                         </div>
 
                         <select
                           value={shiftState.slot1DoctorId}
-                          onChange={(e) =>
-                            saveShiftUpdate({ slot1DoctorId: e.target.value })
-                          }
+                          onChange={(e) => saveShiftUpdate({ slot1DoctorId: e.target.value })}
                           className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                         >
                           {doctors.map((d) => (
@@ -1643,7 +1612,7 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Slot 2 Doctor */}
+                    {/* 2. Doktor */}
                     {!shiftState.singleDoctorMode && (
                       <div
                         className={`rounded-2xl p-4 border-2 transition-all flex flex-col justify-between gap-4 ${
@@ -1660,16 +1629,14 @@ export default function App() {
                             {shiftEvaluation.activeSlot === 2 && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-slate-950">
                                 <Check className="w-3 h-3 stroke-[3]" />
-                                EKRANDA AKTİF
+                                EKRANDA GÖSTERİLİYOR
                               </span>
                             )}
                           </div>
 
                           <select
                             value={shiftState.slot2DoctorId}
-                            onChange={(e) =>
-                              saveShiftUpdate({ slot2DoctorId: e.target.value })
-                            }
+                            onChange={(e) => saveShiftUpdate({ slot2DoctorId: e.target.value })}
                             className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                           >
                             {doctors.map((d) => (
@@ -1710,7 +1677,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Background Auto Handover Settings */}
+                {/* Otomatik Gece Devir Saati */}
                 {!shiftState.singleDoctorMode && (
                   <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                     <div className="flex items-center justify-between gap-3">
@@ -1721,7 +1688,7 @@ export default function App() {
                             Otomatik Nöbet Değişim Saati (İsteğe Bağlı)
                           </h3>
                           <p className="text-xs text-slate-400">
-                            Belirlediğiniz saatte ekran otomatik olarak 2. doktora geçer (Acil ekranında saat bilgisi görünmez).
+                            Belirlediğiniz saatte ekran otomatik olarak 2. doktora geçer.
                           </p>
                         </div>
                       </div>
@@ -1800,46 +1767,10 @@ export default function App() {
                     )}
                   </div>
                 )}
-
-                {/* Admin Password Change Card */}
-                <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                      <KeyRound className="w-4 h-4 text-indigo-400" />
-                      <span>Yönetici Şifresini Değiştir</span>
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Yönetici girişi şifresini buradan istediğiniz zaman güncelleyebilirsiniz.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="password"
-                      value={newPinInput}
-                      onChange={(e) => setNewPinInput(e.target.value)}
-                      placeholder="Yeni şifre girin"
-                      maxLength={16}
-                      className="w-full sm:w-44 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs sm:text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!newPinInput.trim()) return;
-                        saveShiftUpdate({ adminPin: newPinInput.trim() });
-                        setNewPinInput('');
-                        showToast('Yönetici şifresi güncellendi!', 'success');
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                    >
-                      Şifreyi Değiştir
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
 
-            {/* ADMIN TAB 2: DOCTOR ROSTER */}
+            {/* SEKME 2: DOKTOR LİSTESİ */}
             {adminTab === 'roster' && (
               <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1848,7 +1779,7 @@ export default function App() {
                       Radyoloji Doktor Listesi ({doctors.length})
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Doktor isimlerini ve telefon numaralarını ekleyin veya düzenleyin.
+                      Doktor isimlerini ve telefon numaralarını düzenleyebilirsiniz.
                     </p>
                   </div>
 
@@ -1876,7 +1807,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Single Doctor Editor Form */}
+                {/* Doktor Düzenleme Formu */}
                 {editingDoctor && (
                   <form
                     onSubmit={handleSaveDoctorForm}
@@ -1946,7 +1877,7 @@ export default function App() {
                   </form>
                 )}
 
-                {/* Doctor List */}
+                {/* Liste Tablosu */}
                 <div className="divide-y divide-slate-800/80">
                   {doctors.map((docItem) => {
                     const isSlot1 = shiftState.slot1DoctorId === docItem.id;
@@ -1978,18 +1909,14 @@ export default function App() {
 
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() =>
-                              saveShiftUpdate({ slot1DoctorId: docItem.id })
-                            }
+                            onClick={() => saveShiftUpdate({ slot1DoctorId: docItem.id })}
                             className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
                           >
                             1. Seç
                           </button>
                           {!shiftState.singleDoctorMode && (
                             <button
-                              onClick={() =>
-                                saveShiftUpdate({ slot2DoctorId: docItem.id })
-                              }
+                              onClick={() => saveShiftUpdate({ slot2DoctorId: docItem.id })}
                               className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
                             >
                               2. Seç
@@ -2017,7 +1944,7 @@ export default function App() {
               </div>
             )}
 
-            {/* ADMIN TAB 3: SHARE & SECURITY */}
+            {/* SEKME 3: PAYLAŞ & ŞİFRE DEĞİŞTİR */}
             {adminTab === 'share_security' && (
               <div className="space-y-4">
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
@@ -2026,7 +1953,7 @@ export default function App() {
                     <span>WhatsApp Grubunda Paylaş</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Acil servis veya hastane WhatsApp grubuna bağlantıyı göndermek için aşağıdaki butonları kullanabilirsiniz.
+                    Acil servis veya hastane WhatsApp grubuna güncel yönlendirme linkini gönderebilirsiniz.
                   </p>
 
                   <div className="flex flex-wrap gap-2.5">
@@ -2062,7 +1989,7 @@ export default function App() {
                     <span>Yönetici Şifresini Değiştir</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Yönetici girişi için kullanılan şifreyi buradan istediğiniz zaman güncelleyebilirsiniz.
+                    Yönetici paneli giriş şifresini buradan güncelleyebilirsiniz (Varsayılan: 1234).
                   </p>
                   <div className="flex items-center gap-2 max-w-xs">
                     <input
@@ -2092,7 +2019,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
+      {/* MODAL 1: YÖNETİCİ ŞİFRE GİRİŞİ */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
@@ -2117,7 +2044,7 @@ export default function App() {
                     setPinError('');
                   }}
                   placeholder="Şifrenizi girin"
-                  className="w-full text-center text-lg font-mono font-bold rounded-2xl bg-slate-950 border border-slate-700 py-3.5 px-4 text-white placeholder:text-slate-500 placeholder:font-sans placeholder:text-sm placeholder:tracking-normal focus:outline-none focus:border-indigo-500"
+                  className="w-full text-center text-lg font-mono font-bold rounded-2xl bg-slate-950 border border-slate-700 py-3.5 px-4 text-white placeholder:text-slate-500 placeholder:font-sans placeholder:text-sm focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -2147,7 +2074,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: BULK ROSTER IMPORT MODAL */}
+      {/* MODAL 2: TOPLU LİSTE EKLEME */}
       {showBulkModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
@@ -2167,7 +2094,7 @@ export default function App() {
               rows={6}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`Dr. Deniz Aksoy, +90 532 111 2233\nDr. Mert Kaya, +90 533 444 5566`}
+              placeholder={`Dr. Halit Muhittin, +90 532 000 0000\nDr. Kerem Alkan, +90 533 692 1405`}
               className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
             />
             <div className="flex justify-end gap-2">
