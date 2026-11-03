@@ -126,13 +126,13 @@ const DEFAULT_DOCTORS: Doctor[] = [
   },
   {
     id: 'doc-2',
-    name: 'Dr.2 ',
-    phone: '+90 5'
+    name: 'Dr. 2',
+    phone: '+90 533 692 1405'
   },
   {
     id: 'doc-3',
     name: 'Dr. 3',
-    phone: '+90 5'
+    phone: '+90 542 318 9044'
   },
   {
     id: 'doc-4',
@@ -532,11 +532,11 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'er_caller' | 'admin_panel'>('er_caller');
   const [adminTab, setAdminTab] = useState<'shift_control' | 'roster' | 'share_security'>('shift_control');
 
-  // Akordeon State'leri
+  // Accordion UI States for Main Interface
   const [showBackupDoctor, setShowBackupDoctor] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
 
-  // Dahili Hatlar Yönetici Taslağı
+  // Admin draft fields for the 3 internal hospital extensions
   const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT Odası');
   const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '');
   const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || 'MR Konsolu');
@@ -544,6 +544,7 @@ export default function App() {
   const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || 'Raporlama');
   const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || '');
 
+  // Keep admin drafts in sync with incoming Firestore updates
   useEffect(() => {
     setDraftExt1Label(shiftState.ext1Label || 'BT Odası');
     setDraftExt1Number(shiftState.ext1Number || '');
@@ -723,7 +724,7 @@ export default function App() {
     };
   }, [user]);
 
-  // 5. Computed Shift Doctors (Birinci ve İkinci / Yedek Nöbetçi)
+  // 5. Computed Shift Doctors (Primary & Backup)
   const shiftEvaluation = useMemo(() => {
     return evaluateActiveShiftSlot(shiftState, nowDate);
   }, [shiftState, nowDate]);
@@ -743,6 +744,7 @@ export default function App() {
     ? (shiftEvaluation.activeSlot === 1 ? slot2Doctor : slot1Doctor)
     : null;
 
+  // Check whether at least 1 extension number is configured
   const hasConfiguredExtensions = Boolean(
     (shiftState.ext1Number && shiftState.ext1Number.trim()) ||
     (shiftState.ext2Number && shiftState.ext2Number.trim()) ||
@@ -1063,6 +1065,7 @@ export default function App() {
     }
   };
 
+  // Save up to 3 hospital internal lines
   const handleSaveExtensions = (e: React.FormEvent) => {
     e.preventDefault();
     saveShiftUpdate({
@@ -1105,7 +1108,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
-      {/* Toast Bildirimleri */}
+      {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none">
           <div
@@ -1125,7 +1128,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Üst Çubuk */}
+      {/* Top Header Bar */}
       <header className="w-full max-w-xl mx-auto px-4 pt-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Stethoscope className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1174,13 +1177,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Ana Ekran Alanı */}
+      {/* Main Screen Content */}
       <main className="flex-1 flex flex-col justify-center max-w-xl w-full mx-auto px-4 py-6">
         {viewMode === 'er_caller' ? (
-          /* ACİL SERVİS / ER EKRANI */
+          /* PUBLIC ER / CLINIC CALLER VIEW */
           <div className="w-full space-y-3">
             <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
-              {/* Başlık Rozeti */}
+              {/* Badge */}
               <div className="inline-flex items-center justify-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/30">
                 <span className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -1191,14 +1194,14 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Doktor Adı */}
+              {/* On-Call Doctor Name */}
               <div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                   {activeDoctor?.name || 'Dr. —'}
                 </h1>
               </div>
 
-              {/* Telefon & Kopyalama Butonu */}
+              {/* Phone & Copy Button */}
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <a
                   href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
@@ -1230,7 +1233,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Ara ve WhatsApp Butonları */}
+              {/* Call & WhatsApp Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                 <a
                   href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
@@ -1251,7 +1254,7 @@ export default function App() {
                 </a>
               </div>
 
-              {/* SADE NÖBET MESAJI */}
+              {/* Minimal Clean Footer Note */}
               <div className="pt-4 border-t border-slate-800/80">
                 <p className="text-xs sm:text-sm font-medium text-slate-400">
                   İyi nöbetler dileriz.
@@ -1259,7 +1262,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 1. İSTEĞE BAĞLI: 2. / YEDEK NÖBETÇİ BUTONU */}
+            {/* 1. BACKUP DOCTOR ACCORDION (Revealed only if clicked) */}
             {!shiftState.singleDoctorMode && backupDoctor && (
               <div className="pt-1">
                 <button
@@ -1321,7 +1324,7 @@ export default function App() {
               </div>
             )}
 
-            {/* 2. İSTEĞE BAĞLI: DAHİLİ HATLARI GÖSTER (SADECE NUMARA VARSA GÖRÜNÜR) */}
+            {/* 2. INTERNAL EXTENSIONS ACCORDION (Visible ONLY if at least 1 extension number is configured) */}
             {hasConfiguredExtensions && (
               <div>
                 <button
@@ -1331,7 +1334,7 @@ export default function App() {
                 >
                   <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                   <span>
-                    {showExtensions ? 'Dahili Hatları Gizle' : 'Dahili Hatlar'}
+                    {showExtensions ? 'Dahili Hatları Gizle' : 'Hekimlere Ulaşılamadı mı? Dahili Hatlar'}
                   </span>
                   {showExtensions ? (
                     <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1370,7 +1373,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(item.num!, `${item.label} dahili numarası kopyalandı!`)}
-                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                                 title="Kopyala"
                               >
                                 <Copy className="w-3 h-3 text-cyan-400" />
@@ -1385,9 +1388,9 @@ export default function App() {
             )}
           </div>
         ) : (
-          /* YÖNETİCİ KONTROL PANELİ EKRANI */
+          /* ADMIN CONTROL PANEL VIEW */
           <div className="space-y-5">
-            {/* Yönetici Üst Banner */}
+            {/* Admin Header Banner */}
             <div className="rounded-2xl bg-slate-900 border border-indigo-500/40 p-4 sm:p-5 flex items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -1415,7 +1418,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Yönetici Sekmeleri */}
+            {/* Admin Navigation Tabs */}
             <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
               <button
                 onClick={() => setAdminTab('shift_control')}
@@ -1450,14 +1453,14 @@ export default function App() {
                 }`}
               >
                 <Share2 className="w-4 h-4 shrink-0" />
-                <span>Paylaş &amp; Şifre</span>
+                <span>Paylaş &amp; Dahili</span>
               </button>
             </div>
 
-            {/* SEKME 1: NÖBET SEÇİMİ & METİN ÇIKARICI */}
+            {/* TAB 1: SHIFT SELECTION & SMART EXTRACTOR */}
             {adminTab === 'shift_control' && (
               <div className="space-y-5">
-                {/* Liste Çıkarıcı */}
+                {/* Smart List Extractor */}
                 <div className="rounded-3xl bg-gradient-to-br from-indigo-950/50 via-slate-900 to-slate-900 border border-indigo-500/40 p-5 space-y-4 shadow-xl">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -1529,7 +1532,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 3 Adımlı Onay Kutusu */}
+                  {/* 3-Step Selection Interface */}
                   {extractionResult && extractionResult.extractedDoctors.length > 0 && (
                     <div className="rounded-2xl bg-slate-950/90 border border-indigo-500/40 p-4 space-y-4 mt-2">
                       <div className="space-y-2.5">
@@ -1607,7 +1610,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 2. Adım */}
+                      {/* Step 2 */}
                       <div className="space-y-2.5 pt-3 border-t border-slate-800">
                         <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300 block">
                           2. Adım: Nöbetteki 2 Doktoru Doğrulayın
@@ -1650,7 +1653,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* 3. Adım */}
+                      {/* Step 3 */}
                       <div className="space-y-3 pt-3 border-t border-slate-800">
                         <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 block">
                           3. Adım: Şu Anda Çağrı Yönlendirilecek Doktoru Belirleyin
@@ -1718,7 +1721,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 2 Nöbetçi & Hızlı Değiştirici */}
+                {/* 2 Doctors & 1-Tap Handover Switcher */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -1742,7 +1745,7 @@ export default function App() {
                   </div>
 
                   <div className={`grid grid-cols-1 ${shiftState.singleDoctorMode ? '' : 'sm:grid-cols-2'} gap-4`}>
-                    {/* 1. Doktor */}
+                    {/* Slot 1 Doctor */}
                     <div
                       className={`rounded-2xl p-4 border-2 transition-all flex flex-col justify-between gap-4 ${
                         shiftEvaluation.activeSlot === 1
@@ -1805,7 +1808,7 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* 2. Doktor */}
+                    {/* Slot 2 Doctor */}
                     {!shiftState.singleDoctorMode && (
                       <div
                         className={`rounded-2xl p-4 border-2 transition-all flex flex-col justify-between gap-4 ${
@@ -1870,7 +1873,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Otomatik Gece Devir Saati */}
+                {/* Automatic Handover Settings */}
                 {!shiftState.singleDoctorMode && (
                   <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                     <div className="flex items-center justify-between gap-3">
@@ -1963,7 +1966,7 @@ export default function App() {
               </div>
             )}
 
-            {/* SEKME 2: DOKTOR LİSTESİ */}
+            {/* TAB 2: DOCTOR ROSTER */}
             {adminTab === 'roster' && (
               <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2000,7 +2003,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Doktor Düzenleme Formu */}
+                {/* Edit / Add Single Doctor Form */}
                 {editingDoctor && (
                   <form
                     onSubmit={handleSaveDoctorForm}
@@ -2070,7 +2073,7 @@ export default function App() {
                   </form>
                 )}
 
-                {/* Liste Tablosu */}
+                {/* Doctor Table */}
                 <div className="divide-y divide-slate-800/80">
                   {doctors.map((docItem) => {
                     const isSlot1 = shiftState.slot1DoctorId === docItem.id;
@@ -2137,10 +2140,10 @@ export default function App() {
               </div>
             )}
 
-            {/* SEKME 3: PAYLAŞ, DAHİLİ HATLARI DÜZENLE & ŞİFRE */}
+            {/* TAB 3: SHARE, INTERNAL EXTENSIONS CONFIG & ADMIN PIN */}
             {adminTab === 'share_security' && (
               <div className="space-y-4">
-                {/* 1. DAHİLİ HATLARI YÖNET (3 HAT ALANI) */}
+                {/* 1. INTERNAL EXTENSIONS MANAGER (UP TO 3 LINES) */}
                 <div className="rounded-3xl bg-slate-900 border border-cyan-500/30 p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -2149,14 +2152,14 @@ export default function App() {
                         <span>Hastane İçi Dahili Hatlar (Maks. 3 Hat)</span>
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        İstemediğiniz hatları boş bırakabilirsiniz. Boş bırakılan hatlar Acil Servis ekranında görünmez.
+                        İstemediğiniz hatları boş bırakabilirsiniz. Numarası boş bırakılan hatlar Acil Servis ekranında kesinlikle görünmez.
                       </p>
                     </div>
                   </div>
 
                   <form onSubmit={handleSaveExtensions} className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* Hat 1 */}
+                      {/* Line 1 */}
                       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                         <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">1. Dahili Hat</span>
                         <input
@@ -2175,7 +2178,7 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Hat 2 */}
+                      {/* Line 2 */}
                       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                         <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">2. Dahili Hat</span>
                         <input
@@ -2194,7 +2197,7 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Hat 3 */}
+                      {/* Line 3 */}
                       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                         <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">3. Dahili Hat</span>
                         <input
@@ -2225,7 +2228,7 @@ export default function App() {
                   </form>
                 </div>
 
-                {/* 2. WhatsApp Paylaş */}
+                {/* 2. WhatsApp Share Card */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Share2 className="w-4 h-4 text-emerald-400" />
@@ -2262,7 +2265,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 3. Şifre Değiştir */}
+                {/* 3. PIN Management */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <KeyRound className="w-4 h-4 text-indigo-400" />
@@ -2299,7 +2302,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL 1: YÖNETİCİ ŞİFRE GİRİŞİ */}
+      {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
@@ -2354,7 +2357,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: TOPLU LİSTE EKLEME */}
+      {/* MODAL 2: BULK ROSTER IMPORT MODAL */}
       {showBulkModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
@@ -2374,7 +2377,7 @@ export default function App() {
               rows={6}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`Dr. Halit Muhittin, +90 532 000 0000\nDr. Kerem Alkan, +90 533 692 1405`}
+              placeholder={`Dr. Halit Muhittin, +90 532 000 0000\nDr. 2, +90 533 692 1405`}
               className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
             />
             <div className="flex justify-end gap-2">
