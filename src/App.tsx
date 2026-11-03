@@ -133,23 +133,19 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
 const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v1';
 
-// Setup optional Firebase SDK safely
-let auth: ReturnType<typeof getAuth> | null = null;
-let db: ReturnType<typeof getFirestore> | null = null;
+// Setup Firebase SDK
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "radyolojinobetcisi.firebaseapp.com",
+  projectId: "radyolojinobetcisi",
+  storageBucket: "radyolojinobetcisi.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_ID",
+  appId: "YOUR_APP_ID"
+};
 
-try {
-  const rawConfig = typeof window !== 'undefined' ? window.__firebase_config : undefined;
-  if (rawConfig) {
-    const parsedConfig = JSON.parse(rawConfig);
-    if (parsedConfig && parsedConfig.apiKey) {
-      const app = getApps().length === 0 ? initializeApp(parsedConfig) : getApp();
-      auth = getAuth(app);
-      db = getFirestore(app);
-    }
-  }
-} catch (e) {
-  console.warn('Firebase config unavailable or failed to initialize, running with local real-time channel sync.', e);
-}
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // BroadcastChannel for instant cross-tab sync in hospital browser windows
 const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('radiology_router_channel') : null;
