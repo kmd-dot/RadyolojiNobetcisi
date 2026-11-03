@@ -126,17 +126,17 @@ const DEFAULT_DOCTORS: Doctor[] = [
   },
   {
     id: 'doc-2',
-    name: 'Dr. Kerem Alkan',
-    phone: '+90 533 692 1405'
+    name: 'Dr.2 ',
+    phone: '+90 5'
   },
   {
     id: 'doc-3',
-    name: 'Dr. Selin Demirci',
-    phone: '+90 542 318 9044'
+    name: 'Dr. 3',
+    phone: '+90 5'
   },
   {
     id: 'doc-4',
-    name: 'Dr. Caner Özkan',
+    name: 'Dr. 4',
     phone: '+90 535 811 2390'
   }
 ];
