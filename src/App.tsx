@@ -38,7 +38,8 @@ import {
   UserCheck,
   Wand2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Building2
 } from 'lucide-react';
 
 // ============================================================================
@@ -71,6 +72,12 @@ export interface ShiftState {
   manualOverridePeriodKey: string | null;
   adminPin: string;
   lastUpdatedAt: number;
+  ext1Label?: string;
+  ext1Number?: string;
+  ext2Label?: string;
+  ext2Number?: string;
+  ext3Label?: string;
+  ext3Number?: string;
 }
 
 export interface ExtractedDoctor {
@@ -146,7 +153,13 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   manualOverrideSlot: null,
   manualOverridePeriodKey: null,
   adminPin: '1234',
-  lastUpdatedAt: Date.now()
+  lastUpdatedAt: Date.now(),
+  ext1Label: 'BT Odası',
+  ext1Number: '',
+  ext2Label: 'MR Konsolu',
+  ext2Number: '',
+  ext3Label: 'Raporlama',
+  ext3Number: ''
 };
 
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
@@ -519,8 +532,26 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'er_caller' | 'admin_panel'>('er_caller');
   const [adminTab, setAdminTab] = useState<'shift_control' | 'roster' | 'share_security'>('shift_control');
 
-  // Yedek doktoru göster/gizle akordeon state'i
+  // Akordeon State'leri
   const [showBackupDoctor, setShowBackupDoctor] = useState(false);
+  const [showExtensions, setShowExtensions] = useState(false);
+
+  // Dahili Hatlar Yönetici Taslağı
+  const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT Odası');
+  const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '');
+  const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || 'MR Konsolu');
+  const [draftExt2Number, setDraftExt2Number] = useState(shiftState.ext2Number || '');
+  const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || 'Raporlama');
+  const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || '');
+
+  useEffect(() => {
+    setDraftExt1Label(shiftState.ext1Label || 'BT Odası');
+    setDraftExt1Number(shiftState.ext1Number || '');
+    setDraftExt2Label(shiftState.ext2Label || 'MR Konsolu');
+    setDraftExt2Number(shiftState.ext2Number || '');
+    setDraftExt3Label(shiftState.ext3Label || 'Raporlama');
+    setDraftExt3Number(shiftState.ext3Number || '');
+  }, [shiftState.lastUpdatedAt]);
 
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -705,14 +736,18 @@ export default function App() {
     return doctors.find((d) => d.id === shiftState.slot2DoctorId) || doctors[1] || doctors[0] || null;
   }, [doctors, shiftState.slot2DoctorId]);
 
-  // Şu an aramaların gittiği doktor
   const activeDoctor =
     shiftEvaluation.activeSlot === 2 && !shiftState.singleDoctorMode ? slot2Doctor : slot1Doctor;
 
-  // Yedek doktor (diğer nöbetçi)
   const backupDoctor = !shiftState.singleDoctorMode
     ? (shiftEvaluation.activeSlot === 1 ? slot2Doctor : slot1Doctor)
     : null;
+
+  const hasConfiguredExtensions = Boolean(
+    (shiftState.ext1Number && shiftState.ext1Number.trim()) ||
+    (shiftState.ext2Number && shiftState.ext2Number.trim()) ||
+    (shiftState.ext3Number && shiftState.ext3Number.trim())
+  );
 
   // 6. Persistence & Cloud Sync
   const saveShiftUpdate = async (partialUpdate: Partial<ShiftState>) => {
@@ -830,7 +865,7 @@ export default function App() {
     const mm2 = String(tmrw.getMonth() + 1).padStart(2, '0');
 
     const sample =
-      `RADYOLOJİ NÖBET LİSTESİ VE TELEFONLAR\n` +
+      `DÜZCE ÜNİVERSİTESİ RADYOLOJİ NÖBET LİSTESİ VE TELEFONLAR\n` +
       `${dd}.${mm}.${yyyy} (Bugün): Dr. Halit Muhittin / Dr. Kerem Alkan\n` +
       `${dd2}.${mm2}.${yyyy}: Dr. Selin Demirci / Dr. Caner Özkan\n\n` +
       `DOKTOR İLETİŞİM NUMARALARI:\n` +
@@ -1028,13 +1063,26 @@ export default function App() {
     }
   };
 
+  const handleSaveExtensions = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveShiftUpdate({
+      ext1Label: draftExt1Label.trim(),
+      ext1Number: draftExt1Number.trim(),
+      ext2Label: draftExt2Label.trim(),
+      ext2Number: draftExt2Number.trim(),
+      ext3Label: draftExt3Label.trim(),
+      ext3Number: draftExt3Number.trim()
+    });
+    showToast('Dahili numaralar kaydedildi!', 'success');
+  };
+
   const generateWhatsAppShareMessage = () => {
     const pageUrl = window.location.href;
     const activeName = activeDoctor?.name || 'Nöbetçi Doktor';
     const activePhone = activeDoctor?.phone || '';
 
     return (
-      `🏥 *RADYOLOJİ NÖBETÇİSİ*\n\n` +
+      `🏥 *DÜZCE ÜNİVERSİTESİ - RADYOLOJİ NÖBETÇİSİ*\n\n` +
       `👨‍⚕️ *${activeName}*\n` +
       `📞 *${activePhone}*\n\n` +
       `🔗 Güncel nöbetçi doktor bağlantısı:\n${pageUrl}`
@@ -1047,7 +1095,9 @@ export default function App() {
         <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center animate-pulse mb-4">
           <Stethoscope className="w-7 h-7 text-emerald-400" />
         </div>
-        <h1 className="text-lg font-bold tracking-tight text-slate-100">Radyoloji Nöbetçisi</h1>
+        <h1 className="text-lg font-bold tracking-tight text-slate-100 text-center">
+          Düzce Üniversitesi - Radyoloji Nöbetçisi
+        </h1>
         <p className="text-xs text-slate-400 mt-1">Yükleniyor...</p>
       </div>
     );
@@ -1080,7 +1130,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <Stethoscope className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="text-xs sm:text-sm font-bold text-slate-300 tracking-tight">
-            Radyoloji Nöbetçisi
+            Düzce Üniversitesi - Radyoloji Nöbetçisi
           </span>
         </div>
 
@@ -1128,7 +1178,7 @@ export default function App() {
       <main className="flex-1 flex flex-col justify-center max-w-xl w-full mx-auto px-4 py-6">
         {viewMode === 'er_caller' ? (
           /* ACİL SERVİS / ER EKRANI */
-          <div className="w-full space-y-4">
+          <div className="w-full space-y-3">
             <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
               {/* Başlık Rozeti */}
               <div className="inline-flex items-center justify-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/30">
@@ -1137,7 +1187,7 @@ export default function App() {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                 </span>
                 <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-emerald-300">
-                  Radyoloji Nöbetçisi
+                  Düzce Üniversitesi - Radyoloji Nöbetçisi
                 </span>
               </div>
 
@@ -1200,15 +1250,22 @@ export default function App() {
                   <span>WhatsApp Doktor</span>
                 </a>
               </div>
+
+              {/* SADE NÖBET MESAJI */}
+              <div className="pt-4 border-t border-slate-800/80">
+                <p className="text-xs sm:text-sm font-medium text-slate-400">
+                  İyi nöbetler dileriz.
+                </p>
+              </div>
             </div>
 
-            {/* İSTEĞE BAĞLI: 2. / YEDEK NÖBETÇİ BUTONU (KORUMALI ALAN) */}
+            {/* 1. İSTEĞE BAĞLI: 2. / YEDEK NÖBETÇİ BUTONU */}
             {!shiftState.singleDoctorMode && backupDoctor && (
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => setShowBackupDoctor((prev) => !prev)}
-                  className="w-full py-3 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>
@@ -1224,40 +1281,103 @@ export default function App() {
                 </button>
 
                 {showBackupDoctor && (
-                  <div className="mt-3 p-5 rounded-3xl bg-slate-900 border border-amber-500/30 text-center space-y-4 shadow-xl">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                  <div className="mt-2.5 p-4 rounded-3xl bg-slate-900 border border-amber-500/30 text-center space-y-3 shadow-xl">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
                       <span>2. Nöbetçi (Yedek)</span>
                     </div>
 
                     <div>
-                      <h3 className="text-2xl font-bold text-white tracking-tight">
+                      <h3 className="text-xl font-bold text-white tracking-tight">
                         {backupDoctor.name}
                       </h3>
                       <a
                         href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
-                        className="block font-mono text-xl font-bold text-amber-400 mt-1 hover:underline"
+                        className="block font-mono text-lg font-bold text-amber-400 mt-0.5 hover:underline"
                       >
                         {backupDoctor.phone}
                       </a>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <a
                         href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
-                        className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
                       >
-                        <PhoneCall className="w-4 h-4 stroke-[2.5]" />
+                        <PhoneCall className="w-3.5 h-3.5 stroke-[2.5]" />
                         <span>Hemen Ara</span>
                       </a>
                       <a
                         href={`https://wa.me/${cleanPhoneForWhatsApp(backupDoctor.phone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer"
                       >
-                        <MessageSquare className="w-4 h-4 text-emerald-400" />
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
                         <span>WhatsApp</span>
                       </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 2. İSTEĞE BAĞLI: DAHİLİ HATLARI GÖSTER (SADECE NUMARA VARSA GÖRÜNÜR) */}
+            {hasConfiguredExtensions && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowExtensions((prev) => !prev)}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>
+                    {showExtensions ? 'Dahili Hatları Gizle' : 'Dahili Hatlar'}
+                  </span>
+                  {showExtensions ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                  )}
+                </button>
+
+                {showExtensions && (
+                  <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-900 border border-cyan-500/30 text-left space-y-2 shadow-xl">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
+                      <span>Hastane İçi Dahili Telefonlar</span>
+                      <span className="text-slate-400 normal-case">Tıkla Ara / Kopyala</span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      {[
+                        { label: shiftState.ext1Label || '1. Dahili Hat', num: shiftState.ext1Number },
+                        { label: shiftState.ext2Label || '2. Dahili Hat', num: shiftState.ext2Number },
+                        { label: shiftState.ext3Label || '3. Dahili Hat', num: shiftState.ext3Number }
+                      ]
+                        .filter((item) => item.num && item.num.trim())
+                        .map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80"
+                          >
+                            <span className="text-xs font-medium text-slate-200">{item.label}</span>
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={`tel:${cleanPhoneForTel(item.num)}`}
+                                className="px-2.5 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono font-bold text-xs hover:bg-cyan-900/60 transition-colors"
+                              >
+                                {item.num}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(item.num!, `${item.label} dahili numarası kopyalandı!`)}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                                title="Kopyala"
+                              >
+                                <Copy className="w-3 h-3 text-cyan-400" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -1270,9 +1390,12 @@ export default function App() {
             {/* Yönetici Üst Banner */}
             <div className="rounded-2xl bg-slate-900 border border-indigo-500/40 p-4 sm:p-5 flex items-center justify-between gap-3">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
-                  Yönetici Paneli
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
+                    Yönetici Paneli
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">• Designed by Halit</span>
+                </div>
                 <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5">
                   Şu An Çağrı Yönlendirilen Doktor:{' '}
                   <span className="text-emerald-400">{activeDoctor?.name}</span>
@@ -1346,7 +1469,7 @@ export default function App() {
                           <span>Listeden Otomatik Çıkar ve Nöbetçi Öner</span>
                         </h3>
                         <p className="text-xs text-slate-300 mt-0.5">
-                          WhatsApp nöbet mesajını veya aylık nöbet listesini aşağıya yapıştırın. Sistem bugünün 2 nöbetçisini otomatik tespit eder.
+                          WhatsApp nöbet mesajını veya nöbet çizelgesini yapıştırın. Sistem bugünün nöbetçilerini otomatik önerir.
                         </p>
                       </div>
                     </div>
@@ -2014,9 +2137,95 @@ export default function App() {
               </div>
             )}
 
-            {/* SEKME 3: PAYLAŞ & ŞİFRE DEĞİŞTİR */}
+            {/* SEKME 3: PAYLAŞ, DAHİLİ HATLARI DÜZENLE & ŞİFRE */}
             {adminTab === 'share_security' && (
               <div className="space-y-4">
+                {/* 1. DAHİLİ HATLARI YÖNET (3 HAT ALANI) */}
+                <div className="rounded-3xl bg-slate-900 border border-cyan-500/30 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-cyan-400" />
+                        <span>Hastane İçi Dahili Hatlar (Maks. 3 Hat)</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        İstemediğiniz hatları boş bırakabilirsiniz. Boş bırakılan hatlar Acil Servis ekranında görünmez.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveExtensions} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Hat 1 */}
+                      <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">1. Dahili Hat</span>
+                        <input
+                          type="text"
+                          value={draftExt1Label}
+                          onChange={(e) => setDraftExt1Label(e.target.value)}
+                          placeholder="Birim Adı (Örn: BT Odası)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={draftExt1Number}
+                          onChange={(e) => setDraftExt1Number(e.target.value)}
+                          placeholder="Dahili No (Örn: 1234)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-mono text-cyan-300"
+                        />
+                      </div>
+
+                      {/* Hat 2 */}
+                      <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">2. Dahili Hat</span>
+                        <input
+                          type="text"
+                          value={draftExt2Label}
+                          onChange={(e) => setDraftExt2Label(e.target.value)}
+                          placeholder="Birim Adı (Örn: MR Konsolu)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={draftExt2Number}
+                          onChange={(e) => setDraftExt2Number(e.target.value)}
+                          placeholder="Dahili No (Örn: 1235)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-mono text-cyan-300"
+                        />
+                      </div>
+
+                      {/* Hat 3 */}
+                      <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">3. Dahili Hat</span>
+                        <input
+                          type="text"
+                          value={draftExt3Label}
+                          onChange={(e) => setDraftExt3Label(e.target.value)}
+                          placeholder="Birim Adı (Örn: Raporlama)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={draftExt3Number}
+                          onChange={(e) => setDraftExt3Number(e.target.value)}
+                          placeholder="Dahili No (Örn: 1236)"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-mono text-cyan-300"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                      >
+                        Dahili Numaraları Kaydet
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* 2. WhatsApp Paylaş */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Share2 className="w-4 h-4 text-emerald-400" />
@@ -2053,6 +2262,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 3. Şifre Değiştir */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-3">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <KeyRound className="w-4 h-4 text-indigo-400" />
