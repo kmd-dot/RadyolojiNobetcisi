@@ -39,7 +39,9 @@ import {
   Wand2,
   ChevronDown,
   ChevronUp,
-  Building2
+  Building2,
+  Clock,
+  PhoneForwarded
 } from 'lucide-react';
 
 // ============================================================================
@@ -126,17 +128,17 @@ const DEFAULT_DOCTORS: Doctor[] = [
   },
   {
     id: 'doc-2',
-    name: 'Dr. 2',
+    name: 'Dr. Kerem Alkan',
     phone: '+90 533 692 1405'
   },
   {
     id: 'doc-3',
-    name: 'Dr. 3',
+    name: 'Dr. Selin Demirci',
     phone: '+90 542 318 9044'
   },
   {
     id: 'doc-4',
-    name: 'Dr. 4',
+    name: 'Dr. Caner Özkan',
     phone: '+90 535 811 2390'
   }
 ];
@@ -154,12 +156,12 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   manualOverridePeriodKey: null,
   adminPin: '1234',
   lastUpdatedAt: Date.now(),
-  ext1Label: 'BT Odası',
-  ext1Number: '',
+  ext1Label: 'BT (Tomografi) Odası',
+  ext1Number: '1234',
   ext2Label: 'MR Konsolu',
-  ext2Number: '',
-  ext3Label: 'Raporlama',
-  ext3Number: ''
+  ext2Number: '1235',
+  ext3Label: 'Raporlama / Sekreterlik',
+  ext3Number: '1236'
 };
 
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
@@ -532,25 +534,25 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'er_caller' | 'admin_panel'>('er_caller');
   const [adminTab, setAdminTab] = useState<'shift_control' | 'roster' | 'share_security'>('shift_control');
 
-  // Accordion UI States for Main Interface
+  // Accordion UI States for Emergency Night Interface
   const [showBackupDoctor, setShowBackupDoctor] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
 
-  // Admin draft fields for the 3 internal hospital extensions
-  const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT Odası');
-  const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '');
+  // Admin draft fields for internal hospital extensions
+  const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT (Tomografi) Odası');
+  const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '1234');
   const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || 'MR Konsolu');
-  const [draftExt2Number, setDraftExt2Number] = useState(shiftState.ext2Number || '');
-  const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || 'Raporlama');
-  const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || '');
+  const [draftExt2Number, setDraftExt2Number] = useState(shiftState.ext2Number || '1235');
+  const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || 'Raporlama / Sekreterlik');
+  const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || '1236');
 
   // Keep admin drafts in sync with incoming Firestore updates
   useEffect(() => {
-    setDraftExt1Label(shiftState.ext1Label || 'BT Odası');
+    setDraftExt1Label(shiftState.ext1Label || 'BT (Tomografi) Odası');
     setDraftExt1Number(shiftState.ext1Number || '');
     setDraftExt2Label(shiftState.ext2Label || 'MR Konsolu');
     setDraftExt2Number(shiftState.ext2Number || '');
-    setDraftExt3Label(shiftState.ext3Label || 'Raporlama');
+    setDraftExt3Label(shiftState.ext3Label || 'Raporlama / Sekreterlik');
     setDraftExt3Number(shiftState.ext3Number || '');
   }, [shiftState.lastUpdatedAt]);
 
@@ -624,7 +626,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Firebase Auth & Fail-safe screen unlock
+  // 3. Firebase Auth
   useEffect(() => {
     let isMounted = true;
     if (!auth || !db) {
@@ -668,7 +670,7 @@ export default function App() {
     };
   }, []);
 
-  // 4. Firestore Real-time Snapshot Dual Sync
+  // 4. Firestore Real-time Snapshot
   useEffect(() => {
     if (!db || !user) return;
 
@@ -724,7 +726,17 @@ export default function App() {
     };
   }, [user]);
 
-  // 5. Computed Shift Doctors (Primary & Backup)
+  // 5. Work Hours Detection (Hafta içi 08:30 - 17:00)
+  const isWorkHours = useMemo(() => {
+    const day = nowDate.getDay(); // 0: Pazar, 1: Pazartesi, ..., 5: Cuma, 6: Cumartesi
+    const isWeekday = day >= 1 && day <= 5;
+    const currentMin = nowDate.getHours() * 60 + nowDate.getMinutes();
+    const startMin = 8 * 60 + 30; // 08:30 = 510 dk
+    const endMin = 17 * 60;       // 17:00 = 1020 dk
+    return isWeekday && currentMin >= startMin && currentMin < endMin;
+  }, [nowDate]);
+
+  // 6. Computed Shift Doctors (Primary & Backup)
   const shiftEvaluation = useMemo(() => {
     return evaluateActiveShiftSlot(shiftState, nowDate);
   }, [shiftState, nowDate]);
@@ -744,14 +756,17 @@ export default function App() {
     ? (shiftEvaluation.activeSlot === 1 ? slot2Doctor : slot1Doctor)
     : null;
 
-  // Check whether at least 1 extension number is configured
-  const hasConfiguredExtensions = Boolean(
-    (shiftState.ext1Number && shiftState.ext1Number.trim()) ||
-    (shiftState.ext2Number && shiftState.ext2Number.trim()) ||
-    (shiftState.ext3Number && shiftState.ext3Number.trim())
-  );
+  // Active Internal Extensions List
+  const configuredExtensions = useMemo(() => {
+    const list = [
+      { label: shiftState.ext1Label || 'BT (Tomografi) Odası', num: shiftState.ext1Number },
+      { label: shiftState.ext2Label || 'MR Konsolu', num: shiftState.ext2Number },
+      { label: shiftState.ext3Label || 'Raporlama / Sekreterlik', num: shiftState.ext3Number }
+    ];
+    return list.filter((item) => item.num && item.num.trim().length > 0);
+  }, [shiftState]);
 
-  // 6. Persistence & Cloud Sync
+  // 7. Persistence & Cloud Sync
   const saveShiftUpdate = async (partialUpdate: Partial<ShiftState>) => {
     const nextState: ShiftState = {
       ...shiftState,
@@ -1065,7 +1080,6 @@ export default function App() {
     }
   };
 
-  // Save up to 3 hospital internal lines
   const handleSaveExtensions = (e: React.FormEvent) => {
     e.preventDefault();
     saveShiftUpdate({
@@ -1143,7 +1157,7 @@ export default function App() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors shadow-sm cursor-pointer"
           >
             <Eye className="w-4 h-4" />
-            <span>Acil Ekranına Dön</span>
+            <span>Ana Ekrana Dön</span>
           </button>
         ) : (
           <button
@@ -1159,7 +1173,7 @@ export default function App() {
             {isAdminUnlocked ? (
               <>
                 <Unlock className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Yönetici Girişi</span>
+                <span>Yönetici Paneli</span>
               </>
             ) : (
               <>
@@ -1180,184 +1194,266 @@ export default function App() {
       {/* Main Screen Content */}
       <main className="flex-1 flex flex-col justify-center max-w-xl w-full mx-auto px-4 py-6">
         {viewMode === 'er_caller' ? (
-          /* PUBLIC ER / CLINIC CALLER VIEW */
-          <div className="w-full space-y-3">
-            <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
-              {/* Badge */}
-              <div className="inline-flex items-center justify-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-                </span>
-                <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-emerald-300">
-                  Düzce Üniversitesi - Radyoloji Nöbetçisi
-                </span>
-              </div>
+          /* ========================================================================= */
+          /* 1. PUBLIC CALLER VIEW                                                     */
+          /* ========================================================================= */
+          isWorkHours ? (
+            /* 1A. MESAİ SAATLERİ GÖRÜNÜMÜ (HAFTA İÇİ 08:30 - 17:00) */
+            <div className="w-full space-y-4">
+              <div className="rounded-3xl bg-slate-900 border-2 border-cyan-500/50 shadow-2xl shadow-cyan-950/20 overflow-hidden p-6 sm:p-8 text-center space-y-6">
+                
+                {/* Working Hours Status Badge */}
+                <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-500/15 border border-cyan-500/30">
+                  <Clock className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-cyan-300">
+                    Mesai Saatleri (08:30 – 17:00)
+                  </span>
+                </div>
 
-              {/* On-Call Doctor Name */}
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                  {activeDoctor?.name || 'Dr. —'}
-                </h1>
-              </div>
+                {/* Main Notice */}
+                <div className="space-y-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                    Nöbet Henüz Başlamamıştır
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+                    Hafta içi rutin mesai devam etmektedir. Radyoloji birimlerine ve raporlama odalarına aşağıdaki dahili hatlardan ulaşabilirsiniz.
+                  </p>
+                </div>
 
-              {/* Phone & Copy Button */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <a
-                  href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
-                  className="block text-2xl sm:text-4xl font-mono font-extrabold text-emerald-400 tracking-wider hover:underline"
-                >
-                  {activeDoctor?.phone || '—'}
-                </a>
+                {/* Internal Extensions Display */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 text-left">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                    <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Building2 className="w-4 h-4" />
+                      <span>Radyoloji Dahili Hatları</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">Tıkla Ara / Kopyala</span>
+                  </div>
 
-                <button
-                  onClick={() =>
-                    copyToClipboard(
-                      activeDoctor?.phone || '',
-                      'Telefon numarası kopyalandı!'
-                    )
-                  }
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition-colors cursor-pointer"
-                >
-                  {copiedPhone ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Numara Kopyalandı</span>
-                    </>
+                  {configuredExtensions.length > 0 ? (
+                    <div className="space-y-2.5 pt-1">
+                      {configuredExtensions.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-colors"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <span className="text-xs sm:text-sm font-semibold text-white block truncate">
+                              {item.label}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              Dahili: {item.num}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={`tel:${cleanPhoneForTel(item.num)}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono font-bold text-xs sm:text-sm transition-all"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>{item.num}</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(item.num!, `${item.label} dahili numarası kopyalandı!`)}
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                              title="Numarayı Kopyala"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <>
-                      <Copy className="w-4 h-4 text-emerald-400" />
-                      <span>Numarayı Kopyala</span>
-                    </>
+                    <div className="py-4 text-center text-xs text-slate-400">
+                      Henüz dahili hat numarası tanımlanmamıştır. Lütfen hastane santralinden radyoloji birimini isteyiniz.
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
 
-              {/* Call & WhatsApp Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                <a
-                  href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
-                  className="flex items-center justify-center gap-3 w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-extrabold text-base sm:text-lg shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-                >
-                  <PhoneCall className="w-5 h-5 stroke-[2.5]" />
-                  <span>Doktoru Hemen Ara</span>
-                </a>
-
-                <a
-                  href={`https://wa.me/${cleanPhoneForWhatsApp(activeDoctor?.phone)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-3 w-full py-4 px-6 rounded-2xl bg-teal-600/25 hover:bg-teal-600/35 border border-teal-500/40 text-teal-200 font-bold text-base sm:text-lg transition-all cursor-pointer"
-                >
-                  <MessageSquare className="w-5 h-5 text-teal-400" />
-                  <span>WhatsApp Doktor</span>
-                </a>
-              </div>
-
-              {/* Minimal Clean Footer Note */}
-              <div className="pt-4 border-t border-slate-800/80">
-                <p className="text-xs sm:text-sm font-medium text-slate-400">
-                  İyi nöbetler dileriz.
-                </p>
+                {/* Footer Note */}
+                <div className="pt-2 border-t border-slate-800/80">
+                  <p className="text-xs sm:text-sm font-medium text-slate-400">
+                    İyi çalışmalar dileriz.
+                  </p>
+                </div>
               </div>
             </div>
-
-            {/* 1. BACKUP DOCTOR ACCORDION (Revealed only if clicked) */}
-            {!shiftState.singleDoctorMode && backupDoctor && (
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowBackupDoctor((prev) => !prev)}
-                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>
-                    {showBackupDoctor
-                      ? 'Yedek Nöbetçi Bilgisini Gizle'
-                      : 'Ulaşılamadı mı? 2. Nöbetçiyi Göster'}
+          ) : (
+            /* 1B. NÖBET SAATLERİ GÖRÜNÜMÜ (HAFTA İÇİ 17:00 - 08:30 & HAFTA SONLARI) */
+            <div className="w-full space-y-3">
+              <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
+                {/* Active Shift Badge */}
+                <div className="inline-flex items-center justify-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                   </span>
-                  {showBackupDoctor ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                  )}
-                </button>
+                  <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-emerald-300">
+                    Düzce Üniversitesi - Radyoloji Nöbetçisi
+                  </span>
+                </div>
 
-                {showBackupDoctor && (
-                  <div className="mt-2.5 p-4 rounded-3xl bg-slate-900 border border-amber-500/30 text-center space-y-3 shadow-xl">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
-                      <span>2. Nöbetçi (Yedek)</span>
-                    </div>
+                {/* Active Doctor Name */}
+                <div>
+                  <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                    {activeDoctor?.name || 'Dr. —'}
+                  </h1>
+                </div>
 
-                    <div>
-                      <h3 className="text-xl font-bold text-white tracking-tight">
-                        {backupDoctor.name}
-                      </h3>
-                      <a
-                        href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
-                        className="block font-mono text-lg font-bold text-amber-400 mt-0.5 hover:underline"
-                      >
-                        {backupDoctor.phone}
-                      </a>
-                    </div>
+                {/* Phone & Copy Button */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <a
+                    href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
+                    className="block text-2xl sm:text-4xl font-mono font-extrabold text-emerald-400 tracking-wider hover:underline"
+                  >
+                    {activeDoctor?.phone || '—'}
+                  </a>
 
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <a
-                        href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
-                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Hemen Ara</span>
-                      </a>
-                      <a
-                        href={`https://wa.me/${cleanPhoneForWhatsApp(backupDoctor.phone)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>WhatsApp</span>
-                      </a>
-                    </div>
-                  </div>
-                )}
+                  <button
+                    onClick={() =>
+                      copyToClipboard(
+                        activeDoctor?.phone || '',
+                        'Telefon numarası kopyalandı!'
+                      )
+                    }
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    {copiedPhone ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span>Numara Kopyalandı</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-emerald-400" />
+                        <span>Numarayı Kopyala</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Call & WhatsApp Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                  <a
+                    href={`tel:${cleanPhoneForTel(activeDoctor?.phone)}`}
+                    className="flex items-center justify-center gap-3 w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-extrabold text-base sm:text-lg shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                  >
+                    <PhoneCall className="w-5 h-5 stroke-[2.5]" />
+                    <span>Doktoru Hemen Ara</span>
+                  </a>
+
+                  <a
+                    href={`https://wa.me/${cleanPhoneForWhatsApp(activeDoctor?.phone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-3 w-full py-4 px-6 rounded-2xl bg-teal-600/25 hover:bg-teal-600/35 border border-teal-500/40 text-teal-200 font-bold text-base sm:text-lg transition-all cursor-pointer"
+                  >
+                    <MessageSquare className="w-5 h-5 text-teal-400" />
+                    <span>WhatsApp Doktor</span>
+                  </a>
+                </div>
+
+                {/* Footer Note */}
+                <div className="pt-4 border-t border-slate-800/80">
+                  <p className="text-xs sm:text-sm font-medium text-slate-400">
+                    İyi nöbetler dileriz.
+                  </p>
+                </div>
               </div>
-            )}
 
-            {/* 2. INTERNAL EXTENSIONS ACCORDION (Visible ONLY if at least 1 extension number is configured) */}
-            {hasConfiguredExtensions && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowExtensions((prev) => !prev)}
-                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>
-                    {showExtensions ? 'Dahili Hatları Gizle' : 'Hekimlere Ulaşılamadı mı? Dahili Hatlar'}
-                  </span>
-                  {showExtensions ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                  )}
-                </button>
+              {/* BACKUP DOCTOR ACCORDION */}
+              {!shiftState.singleDoctorMode && backupDoctor && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowBackupDoctor((prev) => !prev)}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>
+                      {showBackupDoctor
+                        ? 'Yedek Nöbetçi Bilgisini Gizle'
+                        : 'Ulaşılamadı mı? 2. Nöbetçiyi Göster'}
+                    </span>
+                    {showBackupDoctor ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                  </button>
 
-                {showExtensions && (
-                  <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-900 border border-cyan-500/30 text-left space-y-2 shadow-xl">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
-                      <span>Hastane İçi Dahili Telefonlar</span>
-                      <span className="text-slate-400 normal-case">Tıkla Ara / Kopyala</span>
+                  {showBackupDoctor && (
+                    <div className="mt-2.5 p-4 rounded-3xl bg-slate-900 border border-amber-500/30 text-center space-y-3 shadow-xl">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                        <span>2. Nöbetçi (Yedek)</span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-bold text-white tracking-tight">
+                          {backupDoctor.name}
+                        </h3>
+                        <a
+                          href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
+                          className="block font-mono text-lg font-bold text-amber-400 mt-0.5 hover:underline"
+                        >
+                          {backupDoctor.phone}
+                        </a>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <a
+                          href={`tel:${cleanPhoneForTel(backupDoctor.phone)}`}
+                          className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          <PhoneCall className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Hemen Ara</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/${cleanPhoneForWhatsApp(backupDoctor.phone)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
                     </div>
+                  )}
+                </div>
+              )}
 
-                    <div className="space-y-1.5 pt-1">
-                      {[
-                        { label: shiftState.ext1Label || '1. Dahili Hat', num: shiftState.ext1Number },
-                        { label: shiftState.ext2Label || '2. Dahili Hat', num: shiftState.ext2Number },
-                        { label: shiftState.ext3Label || '3. Dahili Hat', num: shiftState.ext3Number }
-                      ]
-                        .filter((item) => item.num && item.num.trim())
-                        .map((item, idx) => (
+              {/* INTERNAL EXTENSIONS ACCORDION (NÖBETTE GEREKTİĞİNDE AÇILIR) */}
+              {configuredExtensions.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowExtensions((prev) => !prev)}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>
+                      {showExtensions ? 'Dahili Hatları Gizle' : 'Hekimlere Ulaşılamadı mı? Dahili Hatlar'}
+                    </span>
+                    {showExtensions ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                    )}
+                  </button>
+
+                  {showExtensions && (
+                    <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-900 border border-cyan-500/30 text-left space-y-2 shadow-xl">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
+                        <span>Hastane İçi Dahili Telefonlar</span>
+                        <span className="text-slate-400 normal-case">Tıkla Ara / Kopyala</span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        {configuredExtensions.map((item, idx) => (
                           <div
                             key={idx}
                             className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80"
@@ -1381,14 +1477,17 @@ export default function App() {
                             </div>
                           </div>
                         ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
         ) : (
-          /* ADMIN CONTROL PANEL VIEW */
+          /* ========================================================================= */
+          /* 2. ADMIN CONTROL PANEL VIEW                                               */
+          /* ========================================================================= */
           <div className="space-y-5">
             {/* Admin Header Banner */}
             <div className="rounded-2xl bg-slate-900 border border-indigo-500/40 p-4 sm:p-5 flex items-center justify-between gap-3">
@@ -1403,6 +1502,12 @@ export default function App() {
                   Şu An Çağrı Yönlendirilen Doktor:{' '}
                   <span className="text-emerald-400">{activeDoctor?.name}</span>
                 </h2>
+                {isWorkHours && (
+                  <p className="text-xs text-cyan-400 mt-1 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    Şu an mesai saatindesiniz. Acil ekranında nöbetçi yerine dahili hatlar gösterilmektedir.
+                  </p>
+                )}
               </div>
 
               <button
@@ -1472,7 +1577,7 @@ export default function App() {
                           <span>Listeden Otomatik Çıkar ve Nöbetçi Öner</span>
                         </h3>
                         <p className="text-xs text-slate-300 mt-0.5">
-                          WhatsApp nöbet mesajını veya nöbet çizelgesini yapıştırın. Sistem bugünün nöbetçilerini otomatik önerir.
+                          WhatsApp nöbet mesajını yapıştırın; bugünün nöbetçilerini otomatik algılar.
                         </p>
                       </div>
                     </div>
@@ -1492,7 +1597,7 @@ export default function App() {
                       rows={4}
                       value={smartListText}
                       onChange={(e) => setSmartListText(e.target.value)}
-                      placeholder={`Örnek liste formatı:\n03.11.2026: Dr. Halit Muhittin (0532 000 00 00) - Dr. Kerem Alkan (0533 692 14 05)\nveya doğrudan WhatsApp mesajını yapıştırın...`}
+                      placeholder={`Örnek:\n04.11.2026 (Bugün): Dr. Halit Muhittin / Dr. Kerem Alkan\n...`}
                       className="w-full rounded-2xl bg-slate-950/90 border border-slate-700/80 focus:border-indigo-400 p-3.5 text-xs sm:text-sm font-mono text-slate-100 placeholder:text-slate-500 focus:outline-none"
                     />
 
@@ -1504,7 +1609,7 @@ export default function App() {
                           onChange={(e) => setSaveExtractedToRoster(e.target.checked)}
                           className="rounded border-slate-700 text-indigo-500 focus:ring-0"
                         />
-                        <span>Çıkarılan doktorları kalıcı veritabanına ekle</span>
+                        <span>Çıkarılan doktorları veritabanına ekle</span>
                       </label>
 
                       <div className="flex items-center gap-2">
@@ -1526,13 +1631,13 @@ export default function App() {
                           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
                         >
                           <Wand2 className="w-4 h-4" />
-                          <span>Doktorları Çıkar ve Nöbetçi Öner</span>
+                          <span>Doktorları Çıkar ve Öner</span>
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* 3-Step Selection Interface */}
+                  {/* 3-Step Selection */}
                   {extractionResult && extractionResult.extractedDoctors.length > 0 && (
                     <div className="rounded-2xl bg-slate-950/90 border border-indigo-500/40 p-4 space-y-4 mt-2">
                       <div className="space-y-2.5">
@@ -1714,7 +1819,7 @@ export default function App() {
                           className="w-full py-3.5 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
                         >
                           <UserCheck className="w-5 h-5 stroke-[2.5]" />
-                          <span>Seçilen Doktoru Acil Ekranında Göster</span>
+                          <span>Seçilen Doktoru Nöbet Listesine Uygula</span>
                         </button>
                       </div>
                     </div>
@@ -1729,7 +1834,7 @@ export default function App() {
                         Nöbetçi Doktorlar ve Yönlendirme Seçimi
                       </h3>
                       <p className="text-xs text-slate-400">
-                        Aramaların iletileceği doktoru tek dokunuşla belirleyin.
+                        Nöbet saati geldiğinde aramaların iletileceği doktoru belirleyin.
                       </p>
                     </div>
 
@@ -1761,7 +1866,7 @@ export default function App() {
                           {shiftEvaluation.activeSlot === 1 && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-slate-950">
                               <Check className="w-3 h-3 stroke-[3]" />
-                              EKRANDA GÖSTERİLİYOR
+                              AKTİF NÖBETÇİ
                             </span>
                           )}
                         </div>
@@ -1796,12 +1901,12 @@ export default function App() {
                           {shiftEvaluation.activeSlot === 1 ? (
                             <>
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>Şu Anda Gösteriliyor</span>
+                              <span>Şu Anda Aktif Nöbetçi</span>
                             </>
                           ) : (
                             <>
                               <PhoneCall className="w-4 h-4" />
-                              <span>Acil Ekranında Göster</span>
+                              <span>Aktif Nöbetçi Yap</span>
                             </>
                           )}
                         </button>
@@ -1825,7 +1930,7 @@ export default function App() {
                             {shiftEvaluation.activeSlot === 2 && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-slate-950">
                                 <Check className="w-3 h-3 stroke-[3]" />
-                                EKRANDA GÖSTERİLİYOR
+                                AKTİF NÖBETÇİ
                               </span>
                             )}
                           </div>
@@ -1859,12 +1964,12 @@ export default function App() {
                           {shiftEvaluation.activeSlot === 2 ? (
                             <>
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>Şu Anda Gösteriliyor</span>
+                              <span>Şu Anda Aktif Nöbetçi</span>
                             </>
                           ) : (
                             <>
                               <PhoneCall className="w-4 h-4" />
-                              <span>Acil Ekranında Göster</span>
+                              <span>Aktif Nöbetçi Yap</span>
                             </>
                           )}
                         </button>
@@ -2143,7 +2248,7 @@ export default function App() {
             {/* TAB 3: SHARE, INTERNAL EXTENSIONS CONFIG & ADMIN PIN */}
             {adminTab === 'share_security' && (
               <div className="space-y-4">
-                {/* 1. INTERNAL EXTENSIONS MANAGER (UP TO 3 LINES) */}
+                {/* 1. INTERNAL EXTENSIONS MANAGER */}
                 <div className="rounded-3xl bg-slate-900 border border-cyan-500/30 p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -2152,7 +2257,7 @@ export default function App() {
                         <span>Hastane İçi Dahili Hatlar (Maks. 3 Hat)</span>
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        İstemediğiniz hatları boş bırakabilirsiniz. Numarası boş bırakılan hatlar Acil Servis ekranında kesinlikle görünmez.
+                        Mesai saatlerinde doğrudan, nöbet saatlerinde ise "Dahili Hatlar" butonu ile gösterilir.
                       </p>
                     </div>
                   </div>
@@ -2235,7 +2340,7 @@ export default function App() {
                     <span>WhatsApp Grubunda Paylaş</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Acil servis veya hastane WhatsApp grubuna güncel yönlendirme linkini gönderebilirsiniz.
+                    Acil servis veya klinik WhatsApp grubuna güncel yönlendirme linkini gönderebilirsiniz.
                   </p>
 
                   <div className="flex flex-wrap gap-2.5">
@@ -2301,7 +2406,8 @@ export default function App() {
           </div>
         )}
       </main>
-{/* Micro-Footer Creator Credit */}
+
+      {/* Micro-Footer Creator Credit */}
       <footer className="w-full text-center py-6 mt-auto">
         <p className="text-[11px] font-normal tracking-wide text-slate-600 selection:bg-transparent">
           Designed with care by Halit{' '}
@@ -2309,7 +2415,7 @@ export default function App() {
           <span className="text-slate-600">Düzce Radyoloji</span>
         </p>
       </footer>
-      
+
       {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2385,7 +2491,7 @@ export default function App() {
               rows={6}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`Dr. Halit Muhittin, +90 532 000 0000\nDr. 2, +90 533 692 1405`}
+              placeholder={`Dr. Halit Muhittin, +90 532 000 0000\nDr. Kerem Alkan, +90 533 692 1405`}
               className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
             />
             <div className="flex justify-end gap-2">
