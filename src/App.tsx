@@ -41,7 +41,7 @@ import {
   ChevronUp,
   Building2,
   Clock,
-  PhoneForwarded
+  Palmtree
 } from 'lucide-react';
 
 // ============================================================================
@@ -80,6 +80,8 @@ export interface ShiftState {
   ext2Number?: string;
   ext3Label?: string;
   ext3Number?: string;
+  workHoursModeEnabled?: boolean;     // Hafta içi 08:30-17:00 mesai kuralı aktif mi?
+  holidayOverrideDateKey?: string | null; // Yönetici tarafından tatil ilan edilen gün (YYYY-MM-DD)
 }
 
 export interface ExtractedDoctor {
@@ -161,15 +163,90 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   ext2Label: 'MR Konsolu',
   ext2Number: '1235',
   ext3Label: 'Raporlama / Sekreterlik',
-  ext3Number: '1236'
+  ext3Number: '1236',
+  workHoursModeEnabled: true,
+  holidayOverrideDateKey: null
 };
 
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
 const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v1';
 
 // ============================================================================
-// TIME & SCHEDULE HELPER FUNCTIONS
+// TIME, SCHEDULE & TURKISH HOLIDAY HELPERS
 // ============================================================================
+function getLocalDateKey(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// 2026 - 2028 Dini Bayram Takvimi (Tam günler ve Arefe günleri)
+const RELIGIOUS_FULL_HOLIDAYS: Record<string, string> = {
+  // 2026 Ramazan & Kurban Bayramı
+  '2026-03-20': 'Ramazan Bayramı (1. Gün)',
+  '2026-03-21': 'Ramazan Bayramı (2. Gün)',
+  '2026-03-22': 'Ramazan Bayramı (3. Gün)',
+  '2026-05-27': 'Kurban Bayramı (1. Gün)',
+  '2026-05-28': 'Kurban Bayramı (2. Gün)',
+  '2026-05-29': 'Kurban Bayramı (3. Gün)',
+  '2026-05-30': 'Kurban Bayramı (4. Gün)',
+  // 2027 Ramazan & Kurban Bayramı
+  '2027-03-09': 'Ramazan Bayramı (1. Gün)',
+  '2027-03-10': 'Ramazan Bayramı (2. Gün)',
+  '2027-03-11': 'Ramazan Bayramı (3. Gün)',
+  '2027-05-16': 'Kurban Bayramı (1. Gün)',
+  '2027-05-17': 'Kurban Bayramı (2. Gün)',
+  '2027-05-18': 'Kurban Bayramı (3. Gün)',
+  '2027-05-19': 'Kurban Bayramı (4. Gün) & 19 Mayıs',
+  // 2028 Ramazan & Kurban Bayramı
+  '2028-02-26': 'Ramazan Bayramı (1. Gün)',
+  '2028-02-27': 'Ramazan Bayramı (2. Gün)',
+  '2028-02-28': 'Ramazan Bayramı (3. Gün)',
+  '2028-05-05': 'Kurban Bayramı (1. Gün)',
+  '2028-05-06': 'Kurban Bayramı (2. Gün)',
+  '2028-05-07': 'Kurban Bayramı (3. Gün)',
+  '2028-05-08': 'Kurban Bayramı (4. Gün)'
+};
+
+const RELIGIOUS_EVE_HALF_DAYS: Record<string, string> = {
+  '2026-03-19': 'Ramazan Bayramı Arefesi (Yarım Gün)',
+  '2026-05-26': 'Kurban Bayramı Arefesi (Yarım Gün)',
+  '2027-03-08': 'Ramazan Bayramı Arefesi (Yarım Gün)',
+  '2027-05-15': 'Kurban Bayramı Arefesi (Yarım Gün)',
+  '2028-02-25': 'Ramazan Bayramı Arefesi (Yarım Gün)',
+  '2028-05-04': 'Kurban Bayramı Arefesi (Yarım Gün)'
+};
+
+function checkTurkishPublicHoliday(date: Date): { isHoliday: boolean; name: string | null } {
+  const d = date.getDate();
+  const m = date.getMonth() + 1;
+  const hour = date.getHours();
+  const dateKey = getLocalDateKey(date);
+
+  // 1. Dini Bayram Tam Gün Kontrolü
+  if (RELIGIOUS_FULL_HOLIDAYS[dateKey]) {
+    return { isHoliday: true, name: RELIGIOUS_FULL_HOLIDAYS[dateKey] };
+  }
+
+  // 2. Dini Bayram Arefesi Kontrolü (Saat 13:00 ve sonrası resmi tatil)
+  if (RELIGIOUS_EVE_HALF_DAYS[dateKey] && hour >= 13) {
+    return { isHoliday: true, name: RELIGIOUS_EVE_HALF_DAYS[dateKey] };
+  }
+
+  // 3. Sabit Ulusal Bayramlar
+  if (m === 1 && d === 1) return { isHoliday: true, name: 'Yılbaşı Tatili' };
+  if (m === 4 && d === 23) return { isHoliday: true, name: '23 Nisan Ulusal Egemenlik ve Çocuk Bayramı' };
+  if (m === 5 && d === 1) return { isHoliday: true, name: '1 Mayıs Emek ve Dayanışma Günü' };
+  if (m === 5 && d === 19) return { isHoliday: true, name: "19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı" };
+  if (m === 7 && d === 15) return { isHoliday: true, name: '15 Temmuz Demokrasi ve Milli Birlik Günü' };
+  if (m === 8 && d === 30) return { isHoliday: true, name: '30 Ağustos Zafer Bayramı' };
+  if (m === 10 && d === 28 && hour >= 13) return { isHoliday: true, name: '28 Ekim Cumhuriyet Bayramı Arefesi (Yarım Gün)' };
+  if (m === 10 && d === 29) return { isHoliday: true, name: '29 Ekim Cumhuriyet Bayramı' };
+
+  return { isHoliday: false, name: null };
+}
+
 function timeToMinutes(timeStr: string): number {
   if (!timeStr || !timeStr.includes(':')) return 0;
   const [h, m] = timeStr.split(':').map(Number);
@@ -726,15 +803,42 @@ export default function App() {
     };
   }, [user]);
 
-  // 5. Work Hours Detection (Hafta içi 08:30 - 17:00)
+  // 5. Holiday & Work Hours Evaluation
+  const todayDateKey = useMemo(() => getLocalDateKey(nowDate), [nowDate]);
+
+  const officialHoliday = useMemo(() => {
+    return checkTurkishPublicHoliday(nowDate);
+  }, [nowDate]);
+
+  const isManualHolidayToday = Boolean(
+    shiftState.holidayOverrideDateKey && shiftState.holidayOverrideDateKey === todayDateKey
+  );
+
   const isWorkHours = useMemo(() => {
+    // A. Yönetici hafta içi mesai kuralını tamamen kapattıysa -> Her zaman Nöbet Modu
+    if (shiftState.workHoursModeEnabled === false) {
+      return false;
+    }
+
+    // B. Yönetici bugün için "Bugün Tatil / İdari İzin" açtıysa -> Nöbet Modu
+    if (isManualHolidayToday) {
+      return false;
+    }
+
+    // C. Otomatik Resmi veya Dini Tatil algılandıysa -> Nöbet Modu
+    if (officialHoliday.isHoliday) {
+      return false;
+    }
+
+    // D. Standart hafta içi (Pzt-Cum) 08:30 - 17:00 kontrolü
     const day = nowDate.getDay(); // 0: Pazar, 1: Pazartesi, ..., 5: Cuma, 6: Cumartesi
     const isWeekday = day >= 1 && day <= 5;
     const currentMin = nowDate.getHours() * 60 + nowDate.getMinutes();
     const startMin = 8 * 60 + 30; // 08:30 = 510 dk
     const endMin = 17 * 60;       // 17:00 = 1020 dk
+
     return isWeekday && currentMin >= startMin && currentMin < endMin;
-  }, [nowDate]);
+  }, [nowDate, shiftState.workHoursModeEnabled, isManualHolidayToday, officialHoliday.isHoliday]);
 
   // 6. Computed Shift Doctors (Primary & Backup)
   const shiftEvaluation = useMemo(() => {
@@ -1201,7 +1305,6 @@ export default function App() {
             /* 1A. MESAİ SAATLERİ GÖRÜNÜMÜ (HAFTA İÇİ 08:30 - 17:00) */
             <div className="w-full space-y-4">
               <div className="rounded-3xl bg-slate-900 border-2 border-cyan-500/50 shadow-2xl shadow-cyan-950/20 overflow-hidden p-6 sm:p-8 text-center space-y-6">
-                
                 {/* Working Hours Status Badge */}
                 <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-500/15 border border-cyan-500/30">
                   <Clock className="w-4 h-4 text-cyan-400" />
@@ -1282,7 +1385,7 @@ export default function App() {
               </div>
             </div>
           ) : (
-            /* 1B. NÖBET SAATLERİ GÖRÜNÜMÜ (HAFTA İÇİ 17:00 - 08:30 & HAFTA SONLARI) */
+            /* 1B. NÖBET SAATLERİ GÖRÜNÜMÜ (HAFTA İÇİ 17:00 - 08:30, HAFTA SONU & TATİLLER) */
             <div className="w-full space-y-3">
               <div className="rounded-3xl bg-slate-900 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/30 overflow-hidden p-6 sm:p-8 text-center space-y-6">
                 {/* Active Shift Badge */}
@@ -1292,7 +1395,11 @@ export default function App() {
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                   </span>
                   <span className="text-xs sm:text-sm font-extrabold tracking-wider uppercase text-emerald-300">
-                    Düzce Üniversitesi - Radyoloji Nöbetçisi
+                    {officialHoliday.isHoliday
+                      ? `Nöbetçi (${officialHoliday.name})`
+                      : isManualHolidayToday
+                      ? `Nöbetçi (Tatil / İdari İzin)`
+                      : `Düzce Üniversitesi - Radyoloji Nöbetçisi`}
                   </span>
                 </div>
 
@@ -1426,7 +1533,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* INTERNAL EXTENSIONS ACCORDION (NÖBETTE GEREKTİĞİNDE AÇILIR) */}
+              {/* INTERNAL EXTENSIONS ACCORDION */}
               {configuredExtensions.length > 0 && (
                 <div>
                   <button
@@ -1502,10 +1609,23 @@ export default function App() {
                   Şu An Çağrı Yönlendirilen Doktor:{' '}
                   <span className="text-emerald-400">{activeDoctor?.name}</span>
                 </h2>
-                {isWorkHours && (
+                {isWorkHours ? (
                   <p className="text-xs text-cyan-400 mt-1 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    Şu an mesai saatindesiniz. Acil ekranında nöbetçi yerine dahili hatlar gösterilmektedir.
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span>Şu an mesai saatindesiniz. Acil ekranında nöbetçi yerine dahili hatlar gösterilmektedir.</span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {officialHoliday.isHoliday
+                        ? `Resmi tatil algılandı (${officialHoliday.name}). 24 saat nöbetçi ekranı aktif.`
+                        : isManualHolidayToday
+                        ? 'Yönetici tatil/idari izin modu aktif. Bugün 24 saat nöbetçi ekranı gösteriliyor.'
+                        : shiftState.workHoursModeEnabled === false
+                        ? 'Mesai saatleri kuralı kapalı. 7/24 nöbetçi ekranı gösteriliyor.'
+                        : 'Şu an nöbet saatindesiniz. Ekranda nöbetçi doktor görünmektedir.'}
+                    </span>
                   </p>
                 )}
               </div>
@@ -1534,7 +1654,7 @@ export default function App() {
                 }`}
               >
                 <ArrowLeftRight className="w-4 h-4 shrink-0" />
-                <span>Nöbet Seçimi</span>
+                <span>Nöbet &amp; Tatil</span>
               </button>
 
               <button
@@ -1562,9 +1682,102 @@ export default function App() {
               </button>
             </div>
 
-            {/* TAB 1: SHIFT SELECTION & SMART EXTRACTOR */}
+            {/* TAB 1: SHIFT SELECTION, HOLIDAY OVERRIDE & SMART EXTRACTOR */}
             {adminTab === 'shift_control' && (
               <div className="space-y-5">
+                {/* 1. MESAİ VE TATİL YÖNETİMİ KARTI */}
+                <div className="rounded-3xl bg-slate-900 border border-cyan-500/40 p-5 space-y-4 shadow-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                      <Palmtree className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        Mesai Saatleri ve Tatil Yönetimi
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Ulusal ve dini bayramlar otomatik algılanır. İdari izinlerde veya mesai ekranını kapatmak istediğinizde aşağıdaki butonları kullanabilirsiniz.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Otomatik Algılanan Resmi Tatil Bildirimi */}
+                  {officialHoliday.isHoliday && (
+                    <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center gap-2.5 text-xs text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        <strong>Otomatik Tatil Algılandı:</strong> Bugün {officialHoliday.name}. Mesai ekranı devre dışı bırakıldı, 24 saat nöbetçi doktor gösteriliyor.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Buton 1: Bugün Tatil / İdari İzin (Ertesi gün otomatik sıfırlanır) */}
+                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-white block">
+                          Bugün Tatil / İdari İzin
+                        </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                          Sadece bugün mesaiyi iptal eder (Yarın otomatik normale döner)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextKey = isManualHolidayToday ? null : todayDateKey;
+                          saveShiftUpdate({ holidayOverrideDateKey: nextKey });
+                          showToast(
+                            nextKey
+                              ? 'Bugün tatil/idari izin olarak işaretlendi. Gün boyu nöbetçi doktor görünecek.'
+                              : 'Bugünkü tatil işareti kaldırıldı.',
+                            'success'
+                          );
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                          isManualHolidayToday
+                            ? 'bg-emerald-500 text-slate-950 shadow-md'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {isManualHolidayToday ? 'Tatil AÇIK' : 'Normal Gün'}
+                      </button>
+                    </div>
+
+                    {/* Buton 2: Hafta İçi Mesai Kuralı Ana Şalteri */}
+                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-white block">
+                          Hafta İçi Mesai Kuralı (08:30–17:00)
+                        </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                          Kapatılırsa sistem 7/24 kesintisiz nöbetçi doktoru gösterir
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentlyEnabled = shiftState.workHoursModeEnabled !== false;
+                          saveShiftUpdate({ workHoursModeEnabled: !currentlyEnabled });
+                          showToast(
+                            !currentlyEnabled
+                              ? 'Hafta içi 08:30-17:00 mesai kuralı aktif edildi.'
+                              : 'Mesai kuralı kapatıldı. Sistem 7/24 nöbetçi doktoru gösterecek.',
+                            'success'
+                          );
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                          shiftState.workHoursModeEnabled !== false
+                            ? 'bg-cyan-500 text-slate-950 shadow-md'
+                            : 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                        }`}
+                      >
+                        {shiftState.workHoursModeEnabled !== false ? 'Kural Aktif' : 'Devre Dışı'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Smart List Extractor */}
                 <div className="rounded-3xl bg-gradient-to-br from-indigo-950/50 via-slate-900 to-slate-900 border border-indigo-500/40 p-5 space-y-4 shadow-xl">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1761,7 +1974,7 @@ export default function App() {
                       {/* Step 3 */}
                       <div className="space-y-3 pt-3 border-t border-slate-800">
                         <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 block">
-                          3. Adım: Şu Anda Çağrı Yönlendirilecek Doktoru Belirleyin
+                          3. Adım: Nöbette İlk Çağrı Yönlendirilecek Doktoru Belirleyin
                         </span>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1806,7 +2019,7 @@ export default function App() {
                                       : 'bg-slate-800 text-slate-400'
                                   }`}
                                 >
-                                  {isSelectedActive ? 'Çağrı Alan Doktor' : 'Bu Doktoru Seç'}
+                                  {isSelectedActive ? 'Aktif Seçildi' : 'Bu Doktoru Seç'}
                                 </div>
                               </button>
                             );
@@ -1819,7 +2032,7 @@ export default function App() {
                           className="w-full py-3.5 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
                         >
                           <UserCheck className="w-5 h-5 stroke-[2.5]" />
-                          <span>Seçilen Doktoru Nöbet Listesine Uygula</span>
+                          <span>Seçilen Doktorları Kaydet</span>
                         </button>
                       </div>
                     </div>
