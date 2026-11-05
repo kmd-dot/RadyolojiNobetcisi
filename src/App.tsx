@@ -75,7 +75,7 @@ export interface ShiftState {
   shiftEndTime: string;
   manualOverrideSlot: number | null;
   manualOverridePeriodKey: string | null;
-  manualDoctorOverrideShiftKey?: string | null; // Prevents monthly table from overwriting manual swap
+  manualDoctorOverrideShiftKey?: string | null;
   adminPin: string;
   lastUpdatedAt: number;
   ext1Label?: string;
@@ -86,7 +86,7 @@ export interface ShiftState {
   ext3Number?: string;
   workHoursModeEnabled?: boolean;
   holidayOverrideDateKey?: string | null;
-  monthlySchedule?: Record<string, DailyScheduleEntry>; // Key: "YYYY-MM-DD"
+  monthlySchedule?: Record<string, DailyScheduleEntry>;
 }
 
 // ============================================================================
@@ -111,19 +111,66 @@ const broadcastChannel =
     : null;
 
 // ============================================================================
-// DEFAULTS & STORAGE KEYS
+// DEFAULT DOCTORS (18 ACTIVE RESIDENTS FROM NOVEMBER 2026 LIST)
 // ============================================================================
 const DEFAULT_DOCTORS: Doctor[] = [
-  { id: 'doc-1', name: 'Dr. Halit Muhittin', phone: '+90 532 000 0000' },
-  { id: 'doc-2', name: 'Dr. Kerem Alkan', phone: '+90 533 692 1405' },
-  { id: 'doc-3', name: 'Dr. Selin Demirci', phone: '+90 542 318 9044' },
-  { id: 'doc-4', name: 'Dr. Caner Özkan', phone: '+90 535 811 2390' }
+  { id: 'doc-cansu', name: 'Dr. Cansu ŞENGÜL', phone: '+90 541 637 69 37' },
+  { id: 'doc-gulceren', name: 'Dr. Gülceren GÖÇER', phone: '+90 534 513 62 08' },
+  { id: 'doc-ahmet', name: 'Dr. Ahmet Emin SARI', phone: '+90 546 736 53 56' },
+  { id: 'doc-seyma', name: 'Dr. Şeyma AYDIN BULGURCU', phone: '+90 538 615 68 27' },
+  { id: 'doc-mustafa', name: 'Dr. Mustafa DAĞLI', phone: '+90 534 249 13 87' },
+  { id: 'doc-rumeysa', name: 'Dr. Rümeysa KEKEÇ', phone: '+90 533 361 69 07' },
+  { id: 'doc-fatma', name: 'Dr. Fatma Nihan AYDEMİR', phone: '+90 537 666 71 13' },
+  { id: 'doc-yavuz', name: 'Dr. Yavuz Selim ZENGİNBAL', phone: '+90 507 647 14 01' },
+  { id: 'doc-zeynep', name: 'Dr. Zeynep ALKAŞ', phone: '+90 537 466 55 69' },
+  { id: 'doc-halit', name: 'Dr. Halit MUHİTTİN', phone: '+90 538 551 84 62' },
+  { id: 'doc-aysenur', name: 'Dr. Ayşenur MALKOÇ', phone: '+90 530 936 31 89' },
+  { id: 'doc-abdullah', name: 'Dr. Abdullah GÖKÇE', phone: '+90 531 558 57 11' },
+  { id: 'doc-mehmet', name: 'Dr. Mehmet KARAKAŞ', phone: '+90 555 110 02 02' },
+  { id: 'doc-emirsefa', name: 'Dr. Emir Sefa Altan', phone: '+90 542 447 40 82' },
+  { id: 'doc-elifozge', name: 'Dr. Elif Özge Yalçın', phone: '+90 531 497 11 64' },
+  { id: 'doc-atay', name: 'Dr. Atay İzci', phone: '+90 534 079 95 65' },
+  { id: 'doc-buse', name: 'Dr. Buse Sarı', phone: '+90 534 480 96 13' },
+  { id: 'doc-aysekubra', name: 'Dr. Ayşe Kübra ARSLAN', phone: '+90 544 156 13 98' }
 ];
+
+const DEFAULT_NOVEMBER_2026_SCHEDULE: Record<string, DailyScheduleEntry> = {
+  '2026-11-01': { slot1Id: 'doc-seyma', slot2Id: 'doc-mehmet' },
+  '2026-11-02': { slot1Id: 'doc-halit', slot2Id: 'doc-buse' },
+  '2026-11-03': { slot1Id: 'doc-fatma', slot2Id: 'doc-elifozge' },
+  '2026-11-04': { slot1Id: 'doc-aysenur', slot2Id: 'doc-aysekubra' },
+  '2026-11-05': { slot1Id: 'doc-cansu', slot2Id: 'doc-mustafa' },
+  '2026-11-06': { slot1Id: 'doc-mehmet', slot2Id: 'doc-emirsefa' },
+  '2026-11-07': { slot1Id: 'doc-zeynep', slot2Id: 'doc-aysekubra' },
+  '2026-11-08': { slot1Id: 'doc-fatma', slot2Id: 'doc-elifozge' },
+  '2026-11-09': { slot1Id: 'doc-mustafa', slot2Id: 'doc-atay' },
+  '2026-11-10': { slot1Id: 'doc-zeynep', slot2Id: 'doc-buse' },
+  '2026-11-11': { slot1Id: 'doc-abdullah', slot2Id: 'doc-mehmet' },
+  '2026-11-12': { slot1Id: 'doc-seyma', slot2Id: 'doc-rumeysa' },
+  '2026-11-13': { slot1Id: 'doc-ahmet', slot2Id: 'doc-elifozge' },
+  '2026-11-14': { slot1Id: 'doc-halit', slot2Id: 'doc-buse' },
+  '2026-11-15': { slot1Id: 'doc-yavuz', slot2Id: 'doc-atay' },
+  '2026-11-16': { slot1Id: 'doc-aysenur', slot2Id: 'doc-mehmet' },
+  '2026-11-17': { slot1Id: 'doc-abdullah', slot2Id: 'doc-emirsefa' },
+  '2026-11-18': { slot1Id: 'doc-yavuz', slot2Id: 'doc-buse' },
+  '2026-11-19': { slot1Id: 'doc-ahmet', slot2Id: 'doc-zeynep' },
+  '2026-11-20': { slot1Id: 'doc-gulceren', slot2Id: 'doc-aysekubra' },
+  '2026-11-21': { slot1Id: 'doc-aysenur', slot2Id: 'doc-atay' },
+  '2026-11-22': { slot1Id: 'doc-rumeysa', slot2Id: 'doc-buse' },
+  '2026-11-23': { slot1Id: 'doc-abdullah', slot2Id: 'doc-emirsefa' },
+  '2026-11-24': { slot1Id: 'doc-fatma', slot2Id: 'doc-aysekubra' },
+  '2026-11-25': { slot1Id: 'doc-rumeysa', slot2Id: 'doc-atay' },
+  '2026-11-26': { slot1Id: 'doc-gulceren', slot2Id: 'doc-yavuz' },
+  '2026-11-27': { slot1Id: 'doc-cansu', slot2Id: 'doc-elifozge' },
+  '2026-11-28': { slot1Id: 'doc-abdullah', slot2Id: 'doc-emirsefa' },
+  '2026-11-29': { slot1Id: 'doc-mustafa', slot2Id: 'doc-aysekubra' },
+  '2026-11-30': { slot1Id: 'doc-halit', slot2Id: 'doc-atay' }
+};
 
 const DEFAULT_SHIFT_STATE: ShiftState = {
   singleDoctorMode: false,
-  slot1DoctorId: 'doc-1',
-  slot2DoctorId: 'doc-2',
+  slot1DoctorId: 'doc-aysenur',
+  slot2DoctorId: 'doc-aysekubra',
   manualActiveSlot: 1,
   autoScheduleEnabled: false,
   shiftStartTime: '17:00',
@@ -142,7 +189,7 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   ext3Number: '1236',
   workHoursModeEnabled: true,
   holidayOverrideDateKey: null,
-  monthlySchedule: {}
+  monthlySchedule: DEFAULT_NOVEMBER_2026_SCHEDULE
 };
 
 const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
@@ -231,7 +278,7 @@ function isTimeInWindow(currentMin: number, startMin: number, endMin: number): b
   }
 }
 
-function evaluateActiveShiftSlot(shiftState: ShiftState, nowDate: Date) {
+function evaluateActiveShiftSlot(shiftState: ShiftState, nowDate: Date, effectiveShiftDateKey: string) {
   if (!shiftState) return { activeSlot: 1, reason: 'manual' };
   if (shiftState.singleDoctorMode) {
     return { activeSlot: 1, reason: 'single' };
@@ -253,14 +300,14 @@ function evaluateActiveShiftSlot(shiftState: ShiftState, nowDate: Date) {
   const inSlot2Window = isTimeInWindow(currentMin, handoverMin, endMin);
 
   let scheduledSlot = shiftState.manualActiveSlot || 1;
-  let periodKey = 'outside';
+  let periodKey = `${effectiveShiftDateKey}_outside`;
 
   if (inSlot1Window) {
     scheduledSlot = 1;
-    periodKey = `slot1_${shiftState.shiftStartTime}_${shiftState.handoverTime}`;
+    periodKey = `${effectiveShiftDateKey}_slot1_${shiftState.shiftStartTime}_${shiftState.handoverTime}`;
   } else if (inSlot2Window) {
     scheduledSlot = 2;
-    periodKey = `slot2_${shiftState.handoverTime}_${shiftState.shiftEndTime}`;
+    periodKey = `${effectiveShiftDateKey}_slot2_${shiftState.handoverTime}_${shiftState.shiftEndTime}`;
   }
 
   if (
@@ -310,19 +357,16 @@ function normalizePersonName(nameStr: string): string {
     .trim();
 }
 
-// Strict, safe doctor matcher that NEVER guesses blindly
 function matchDoctorFromRoster(rawInput: string, doctors: Doctor[]): Doctor | null {
   const normInput = normalizePersonName(rawInput);
   if (!normInput || normInput.length < 3) return null;
 
-  // 1. Exact normalized match
   for (const doc of doctors) {
     if (normalizePersonName(doc.name) === normInput) {
       return doc;
     }
   }
 
-  // 2. All tokens in input match tokens in doctor's name (e.g. "Halit Muhittin" or "Ahmet Emin")
   const inputTokens = normInput.split(' ').filter((t) => t.length >= 2);
   if (inputTokens.length === 0) return null;
 
@@ -338,12 +382,9 @@ function matchDoctorFromRoster(rawInput: string, doctors: Doctor[]): Doctor | nu
   return null;
 }
 
-// Calculates which calendar date's shift is currently active
-// Weekdays: Shift starts 17:00, ends 08:30 next morning
-// Weekends & Holidays: Shift starts 09:00, ends 09:00 next morning (or 08:30 if next morning is a working weekday)
 function getEffectiveShiftDateKey(nowDate: Date, holidayOverrideDateKey?: string | null): string {
   const currentMin = nowDate.getHours() * 60 + nowDate.getMinutes();
-  const dayOfWeek = nowDate.getDay(); // 0: Sun, 6: Sat
+  const dayOfWeek = nowDate.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   const todayKey = getLocalDateKey(nowDate);
   const isTodayHoliday =
@@ -353,7 +394,6 @@ function getEffectiveShiftDateKey(nowDate: Date, holidayOverrideDateKey?: string
 
   const effective = new Date(nowDate.getTime());
   if (currentMin < morningCutoffMin) {
-    // Still in yesterday's overnight shift
     effective.setDate(effective.getDate() - 1);
   }
   return getLocalDateKey(effective);
@@ -384,7 +424,15 @@ export default function App() {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_SHIFT_KEY);
       if (saved) {
-        return { ...DEFAULT_SHIFT_STATE, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SHIFT_STATE,
+          ...parsed,
+          monthlySchedule: {
+            ...DEFAULT_NOVEMBER_2026_SCHEDULE,
+            ...(parsed.monthlySchedule || {})
+          }
+        };
       }
     } catch (e) {
       console.error('Error reading local shift state:', e);
@@ -400,11 +448,9 @@ export default function App() {
     'shift_control' | 'monthly_calendar' | 'roster' | 'share_security'
   >('shift_control');
 
-  // Accordion UI States for Emergency Night Interface
   const [showBackupDoctor, setShowBackupDoctor] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
 
-  // Admin draft fields for internal hospital extensions
   const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT (Tomografi) Odası');
   const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '1234');
   const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || 'MR Konsolu');
@@ -429,7 +475,6 @@ export default function App() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
-  // Monthly Calendar Importer States
   const [monthlyImportText, setMonthlyImportText] = useState('');
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(() => {
@@ -448,7 +493,7 @@ export default function App() {
     }, 3500);
   };
 
-  // 1. Live Clock Effect (Updates every 10 seconds)
+  // 1. Live Clock Effect
   useEffect(() => {
     const interval = setInterval(() => {
       setNowDate(new Date());
@@ -535,7 +580,7 @@ export default function App() {
     };
   }, []);
 
-  // 4. Firestore Real-time Snapshot (Preserves all existing doctors & shift state)
+  // 4. Firestore Real-time Snapshot (Merges 18 active residents safely without losing existing data)
   useEffect(() => {
     if (!db || !user) return;
 
@@ -548,11 +593,20 @@ export default function App() {
       async (snapshot) => {
         if (snapshot.exists()) {
           const remoteData = snapshot.data() as ShiftState;
-          setShiftState((prev) => ({ ... DEFAULT_SHIFT_STATE, ...prev, ...remoteData }));
-          localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(remoteData));
+          const mergedSchedule = {
+            ...DEFAULT_NOVEMBER_2026_SCHEDULE,
+            ...(remoteData.monthlySchedule || {})
+          };
+          const nextShift = {
+            ...DEFAULT_SHIFT_STATE,
+            ...remoteData,
+            monthlySchedule: mergedSchedule
+          };
+          setShiftState(nextShift);
+          localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(nextShift));
         } else {
           try {
-            await setDoc(shiftDocRef, shiftState);
+            await setDoc(shiftDocRef, DEFAULT_SHIFT_STATE);
           } catch (e) {
             console.error('Error seeding shift state:', e);
           }
@@ -570,8 +624,40 @@ export default function App() {
       async (snapshot) => {
         if (snapshot.exists() && Array.isArray(snapshot.data().doctors) && snapshot.data().doctors.length > 0) {
           const remoteDocs = snapshot.data().doctors as Doctor[];
-          setDoctors(remoteDocs);
-          localStorage.setItem(LOCAL_STORAGE_ROSTER_KEY, JSON.stringify(remoteDocs));
+          // Remove old 4 placeholder test doctors if present, and ensure all 18 real residents exist
+          const placeholderNames = new Set(['kerem alkan', 'selin demirci', 'caner ozkan']);
+          const filteredRemote = remoteDocs.filter(
+            (d) => !placeholderNames.has(normalizePersonName(d.name)) && d.phone !== '+90 532 000 0000'
+          );
+
+          const mergedDocs = [...filteredRemote];
+          let rosterChanged = filteredRemote.length !== remoteDocs.length;
+
+          DEFAULT_DOCTORS.forEach((defDoc) => {
+            const normDef = normalizePersonName(defDoc.name);
+            const existingIdx = mergedDocs.findIndex((d) => normalizePersonName(d.name) === normDef);
+            if (existingIdx === -1) {
+              mergedDocs.push(defDoc);
+              rosterChanged = true;
+            }
+          });
+
+          setDoctors(mergedDocs);
+          localStorage.setItem(LOCAL_STORAGE_ROSTER_KEY, JSON.stringify(mergedDocs));
+
+          if (rosterChanged) {
+            try {
+              await setDoc(rosterDocRef, { doctors: mergedDocs, updatedAt: Date.now() });
+            } catch (e) {
+              console.error('Error syncing merged roster:', e);
+            }
+          }
+        } else {
+          try {
+            await setDoc(rosterDocRef, { doctors: DEFAULT_DOCTORS, updatedAt: Date.now() });
+          } catch (e) {
+            console.error('Error seeding roster:', e);
+          }
         }
       },
       (err) => {
@@ -619,38 +705,51 @@ export default function App() {
   const isCurrentShiftManuallyOverridden =
     shiftState.manualDoctorOverrideShiftKey === effectiveShiftDateKey;
 
-  // Resolve Slot 1 & Slot 2 Doctors:
-  // If there is a monthly schedule entry for the active shift AND the admin hasn't manually overridden today's shift, use the monthly schedule.
-  // Otherwise, use the manual slot1DoctorId / slot2DoctorId.
-  const effectiveSlot1Id =
+  // Resolve Slot 1 & Slot 2 Doctors (Supports both ID match and name match)
+  const resolveDoctorByIdOrDef = (docId: string): Doctor | null => {
+    const direct = doctors.find((d) => d.id === docId);
+    if (direct) return direct;
+    const defDoc = DEFAULT_DOCTORS.find((d) => d.id === docId);
+    if (defDoc) {
+      const byName = matchDoctorFromRoster(defDoc.name, doctors);
+      if (byName) return byName;
+    }
+    return null;
+  };
+
+  const rawEffectiveSlot1Id =
     scheduledForCurrentShift && !isCurrentShiftManuallyOverridden
       ? scheduledForCurrentShift.slot1Id
       : shiftState.slot1DoctorId;
 
-  const effectiveSlot2Id =
+  const rawEffectiveSlot2Id =
     scheduledForCurrentShift && !isCurrentShiftManuallyOverridden
       ? scheduledForCurrentShift.slot2Id
       : shiftState.slot2DoctorId;
 
+  const slot1Doctor = useMemo(() => {
+    return resolveDoctorByIdOrDef(rawEffectiveSlot1Id) || doctors[0] || null;
+  }, [doctors, rawEffectiveSlot1Id]);
+
+  const slot2Doctor = useMemo(() => {
+    return resolveDoctorByIdOrDef(rawEffectiveSlot2Id) || doctors[1] || doctors[0] || null;
+  }, [doctors, rawEffectiveSlot2Id]);
+
+  const effectiveSlot1Id = slot1Doctor?.id || rawEffectiveSlot1Id;
+  const effectiveSlot2Id = slot2Doctor?.id || rawEffectiveSlot2Id;
+
   const effectiveSingleMode =
     scheduledForCurrentShift && !isCurrentShiftManuallyOverridden
-      ? scheduledForCurrentShift.slot1Id === scheduledForCurrentShift.slot2Id
+      ? effectiveSlot1Id === effectiveSlot2Id
       : shiftState.singleDoctorMode;
 
   const shiftEvaluation = useMemo(() => {
     return evaluateActiveShiftSlot(
       { ...shiftState, singleDoctorMode: effectiveSingleMode },
-      nowDate
+      nowDate,
+      effectiveShiftDateKey
     );
-  }, [shiftState, effectiveSingleMode, nowDate]);
-
-  const slot1Doctor = useMemo(() => {
-    return doctors.find((d) => d.id === effectiveSlot1Id) || doctors[0] || null;
-  }, [doctors, effectiveSlot1Id]);
-
-  const slot2Doctor = useMemo(() => {
-    return doctors.find((d) => d.id === effectiveSlot2Id) || doctors[1] || doctors[0] || null;
-  }, [doctors, effectiveSlot2Id]);
+  }, [shiftState, effectiveSingleMode, nowDate, effectiveShiftDateKey]);
 
   const activeDoctor =
     shiftEvaluation.activeSlot === 2 && !effectiveSingleMode ? slot2Doctor : slot1Doctor;
@@ -731,7 +830,6 @@ export default function App() {
     }
   };
 
-  // Manual doctor selection in Tab 1 (Safely overrides monthly schedule for current shift)
   const handleManualDoctorChange = async (slot: 1 | 2, newDoctorId: string) => {
     const nextSlot1 = slot === 1 ? newDoctorId : effectiveSlot1Id;
     const nextSlot2 = slot === 2 ? newDoctorId : effectiveSlot2Id;
@@ -748,7 +846,7 @@ export default function App() {
 
   const handleSelectActiveSlot = async (targetSlot: number) => {
     const targetDoc = targetSlot === 2 ? slot2Doctor : slot1Doctor;
-    const evaluation = evaluateActiveShiftSlot(shiftState, nowDate);
+    const evaluation = evaluateActiveShiftSlot(shiftState, nowDate, effectiveShiftDateKey);
 
     const updates: Partial<ShiftState> = {
       manualActiveSlot: targetSlot
@@ -766,7 +864,6 @@ export default function App() {
     showToast(`Çağrı yönlendirilen nöbetçi ${targetDoc?.name} olarak belirlendi`, 'success');
   };
 
-  // Safe, Strict Monthly Schedule Parser (Supports Excel Tabs, Slashes, Commas)
   const handleParseMonthlySchedule = () => {
     if (!monthlyImportText.trim()) {
       showToast('Lütfen aylık nöbet tablosunu yapıştırın.', 'error');
@@ -787,7 +884,6 @@ export default function App() {
     const [defaultYear, defaultMonth] = selectedCalendarMonth.split('-');
 
     lines.forEach((line, idx) => {
-      // Match either full date (01.11.2026, 1/11) or leading day number at start of line
       const fullDateMatch = line.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/);
       const dayOnlyMatch = !fullDateMatch ? line.match(/^(\d{1,2})(?:\s+|\t|[-–—:|.;,])+/) : null;
 
@@ -815,13 +911,11 @@ export default function App() {
 
       if (!fullDateKey) return;
 
-      // Remove weekday names if present in Excel paste
       const cleanedRemainder = remainderLine.replace(
         /\b(pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar|pzt|sal|çar|per|cum|cmt|paz)\b/gi,
         ' '
       );
 
-      // Split by Excel Tab (\t), slash, pipe, comma, semicolon, or hyphen
       const rawSegments = cleanedRemainder
         .split(/[\t/|&,;]+|\s+-\s+|\s+–\s+/)
         .map((s) => s.trim())
@@ -1414,7 +1508,7 @@ export default function App() {
                   <span className="text-emerald-400">{activeDoctor?.name}</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Aktif Nöbet Günü Anahtarı:{' '}
+                  Aktif Nöbet Günü:{' '}
                   <span className="font-mono text-indigo-300">{effectiveShiftDateKey}</span>
                   {scheduledForCurrentShift && !isCurrentShiftManuallyOverridden && (
                     <span className="ml-2 text-emerald-400 font-semibold">
@@ -1493,9 +1587,10 @@ export default function App() {
               </button>
             </div>
 
-            {/* TAB 1: SHIFT SELECTION & HOLIDAY OVERRIDE */}
+            {/* TAB 1: SHIFT SELECTION, NIGHT HANDOVER & HOLIDAY OVERRIDE */}
             {adminTab === 'shift_control' && (
               <div className="space-y-5">
+                {/* 1. MESAİ SAATLERİ VE TATİL KONTROLÜ */}
                 <div className="rounded-3xl bg-slate-900 border border-cyan-500/40 p-5 space-y-4 shadow-xl">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0 mt-0.5">
@@ -1573,12 +1668,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 1-Tap Manual Override & Slot Selection */}
+                {/* 2. ANLIK NÖBETÇİ YÖNLENDİRME (MANUEL OVERRIDE) */}
                 <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-base font-bold text-white">
-                        Anlık Nöbetçi Yönlendirme (Manuel Override)
+                        Anlık Nöbetçi Yönlendirme (Manuel Seçim)
                       </h3>
                       <p className="text-xs text-slate-400">
                         Nöbet değişimi olduğunda buradan seçtiğiniz doktor bu nöbet boyunca aylık takvimi geçersiz kılar.
@@ -1713,6 +1808,110 @@ export default function App() {
                     )}
                   </div>
                 </div>
+
+                {/* 3. OTOMATİK GECE NÖBET DEĞİŞİM SAATİ (1. DOKTORDAN 2. DOKTORA GEÇİŞ) */}
+                {!effectiveSingleMode && (
+                  <div className="rounded-3xl bg-slate-900 border border-indigo-500/30 p-5 space-y-4 shadow-xl">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0">
+                          <CalendarClock className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold text-white">
+                            Otomatik Gece Nöbet Değişim Saati (1. ➔ 2. Nöbetçi)
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Gece belirlediğiniz saatte (örn. 02:00) ekran kendiliğinden 2. nöbetçi doktora geçer; uyurken manuel değiştirmenize gerek kalmaz.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = !shiftState.autoScheduleEnabled;
+                          saveShiftUpdate({
+                            autoScheduleEnabled: nextVal,
+                            manualOverrideSlot: null,
+                            manualOverridePeriodKey: null
+                          });
+                          showToast(
+                            nextVal
+                              ? `Otomatik gece değişimi açıldı (${shiftState.handoverTime})`
+                              : 'Otomatik gece değişimi kapatıldı',
+                            'success'
+                          );
+                        }}
+                        className={`px-4 py-2 rounded-xl font-bold text-xs border transition-all shrink-0 cursor-pointer ${
+                          shiftState.autoScheduleEnabled
+                            ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {shiftState.autoScheduleEnabled ? 'Otomatik AÇIK' : 'Kapalı'}
+                      </button>
+                    </div>
+
+                    {shiftState.autoScheduleEnabled && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+                        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                          <label className="text-[11px] font-bold text-slate-400 block">
+                            1. Doktor Başlangıç Saati
+                          </label>
+                          <input
+                            type="time"
+                            value={shiftState.shiftStartTime}
+                            onChange={(e) =>
+                              saveShiftUpdate({
+                                shiftStartTime: e.target.value,
+                                manualOverrideSlot: null,
+                                manualOverridePeriodKey: null
+                              })
+                            }
+                            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white"
+                          />
+                        </div>
+
+                        <div className="bg-indigo-950/40 p-3 rounded-2xl border border-indigo-500/40">
+                          <label className="text-[11px] font-bold text-indigo-300 block">
+                            2. Doktora Otomatik Geçiş Saati
+                          </label>
+                          <input
+                            type="time"
+                            value={shiftState.handoverTime}
+                            onChange={(e) =>
+                              saveShiftUpdate({
+                                handoverTime: e.target.value,
+                                manualOverrideSlot: null,
+                                manualOverridePeriodKey: null
+                              })
+                            }
+                            className="mt-1 w-full bg-slate-900 border border-indigo-500/50 rounded-xl px-3 py-2 text-sm font-mono font-bold text-emerald-400"
+                          />
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                          <label className="text-[11px] font-bold text-slate-400 block">
+                            Sabah Nöbet Bitiş Saati
+                          </label>
+                          <input
+                            type="time"
+                            value={shiftState.shiftEndTime}
+                            onChange={(e) =>
+                              saveShiftUpdate({
+                                shiftEndTime: e.target.value,
+                                manualOverrideSlot: null,
+                                manualOverridePeriodKey: null
+                              })
+                            }
+                            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1730,7 +1929,7 @@ export default function App() {
                           Aylık Nöbet Tablosu Yükleyici (Excel / Metin)
                         </h3>
                         <p className="text-xs text-slate-300 mt-0.5">
-                          Excel&apos;den doğrudan kopyalayıp yapıştırabilirsiniz. Yalnızca Doktorlar sekmesinde kayıtlı olan isimler eşleştirilir (yanlış doktor atamasını önlemek için tahmin yürütülmez).
+                          Yeni ayın listesini yapıştırıp kaydedebilirsiniz. Kasım 2026 nöbet çizelgeniz halihazırda tanımlıdır.
                         </p>
                       </div>
                     </div>
@@ -1748,10 +1947,10 @@ export default function App() {
 
                   <div className="space-y-3">
                     <textarea
-                      rows={6}
+                      rows={5}
                       value={monthlyImportText}
                       onChange={(e) => setMonthlyImportText(e.target.value)}
-                      placeholder={`Excel'den doğrudan yapıştırın veya şu formatta girin:\n01.11.2026\tDr. Halit Muhittin\tDr. Kerem Alkan\n02.11.2026 - Dr. Selin Demirci / Dr. Caner Özkan`}
+                      placeholder={`Örnek Format:\n01.11.2026 - Dr. Şeyma AYDIN BULGURCU / Dr. Mehmet KARAKAŞ\n02.11.2026 - Dr. Halit MUHİTTİN / Dr. Buse Sarı`}
                       className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
                     />
 
@@ -1759,7 +1958,7 @@ export default function App() {
                       <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-500/40 space-y-1.5">
                         <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
                           <AlertTriangle className="w-4 h-4 shrink-0" />
-                          <span>Eşleşmeyen Satırlar (Lütfen Doktorlar sekmesindeki isimlerle aynı yazın):</span>
+                          <span>Eşleşmeyen Satırlar:</span>
                         </div>
                         <ul className="text-[11px] text-rose-200 font-mono space-y-1 max-h-32 overflow-y-auto pl-4 list-disc">
                           {importWarnings.map((w, i) => (
@@ -1769,26 +1968,45 @@ export default function App() {
                       </div>
                     )}
 
-                    <div className="flex justify-end gap-2">
-                      {monthlyImportText && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMonthlyImportText('');
-                            setImportWarnings([]);
-                          }}
-                          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
-                        >
-                          Temizle
-                        </button>
-                      )}
+                    <div className="flex flex-wrap justify-between items-center gap-2">
                       <button
                         type="button"
-                        onClick={handleParseMonthlySchedule}
-                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
+                        onClick={() => {
+                          saveShiftUpdate({
+                            monthlySchedule: {
+                              ...(shiftState.monthlySchedule || {}),
+                              ...DEFAULT_NOVEMBER_2026_SCHEDULE
+                            },
+                            manualDoctorOverrideShiftKey: null
+                          });
+                          showToast('Kasım 2026 nöbet listesi (30 gün) yüklendi!', 'success');
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
                       >
-                        Aylık Tabloyu İşle ve Kaydet
+                        Kasım 2026 Çizelgesini Yükle / Sıfırla
                       </button>
+
+                      <div className="flex items-center gap-2">
+                        {monthlyImportText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMonthlyImportText('');
+                              setImportWarnings([]);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                          >
+                            Temizle
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleParseMonthlySchedule}
+                          className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
+                        >
+                          Tabloyu İşle ve Kaydet
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1799,7 +2017,7 @@ export default function App() {
                     <div>
                       <h3 className="text-sm font-bold text-white">Kayıtlı Aylık Nöbet Takvimi</h3>
                       <p className="text-[11px] text-slate-400">
-                        İstediğiniz günün nöbetçisini açılır listeden değiştirebilirsiniz.
+                        İstediğiniz günün 1. ve 2. nöbetçisini listeden değiştirebilirsiniz.
                       </p>
                     </div>
                     <span className="text-xs font-mono text-emerald-400">
@@ -1813,6 +2031,9 @@ export default function App() {
                       .map((dateKey) => {
                         const daySched = shiftState.monthlySchedule![dateKey];
                         const isTodayShift = dateKey === effectiveShiftDateKey;
+                        const resolvedDoc1 = resolveDoctorByIdOrDef(daySched.slot1Id);
+                        const resolvedDoc2 = resolveDoctorByIdOrDef(daySched.slot2Id);
+
                         return (
                           <div
                             key={dateKey}
@@ -1833,7 +2054,7 @@ export default function App() {
 
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <select
-                                value={daySched.slot1Id}
+                                value={resolvedDoc1?.id || daySched.slot1Id}
                                 onChange={(e) => {
                                   const nextSched = {
                                     ...shiftState.monthlySchedule,
@@ -1851,7 +2072,7 @@ export default function App() {
                               </select>
 
                               <select
-                                value={daySched.slot2Id}
+                                value={resolvedDoc2?.id || daySched.slot2Id}
                                 onChange={(e) => {
                                   const nextSched = {
                                     ...shiftState.monthlySchedule,
@@ -1884,11 +2105,6 @@ export default function App() {
                           </div>
                         );
                       })}
-                    {Object.keys(shiftState.monthlySchedule || {}).length === 0 && (
-                      <p className="text-xs text-slate-500 text-center py-6">
-                        Henüz sisteme işlenmiş aylık nöbet takvimi bulunmuyor. Yukarıdan yapıştırabilirsiniz.
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1903,7 +2119,7 @@ export default function App() {
                       Radyoloji Doktor Listesi ({doctors.length})
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Kayıtlı doktorlarınız bulutta güvenle saklanır.
+                      18 aktif nöbetçi asistan doktor ve iletişim numaraları tanımlıdır.
                     </p>
                   </div>
 
@@ -2233,7 +2449,7 @@ export default function App() {
               rows={6}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`Dr. Halit Muhittin, +90 532 000 0000`}
+              placeholder={`Dr. Halit Muhittin, +90 538 551 84 62`}
               className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
             />
             <div className="flex justify-end gap-2">
