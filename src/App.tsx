@@ -111,8 +111,19 @@ const broadcastChannel =
     : null;
 
 // ============================================================================
-// DEFAULT DOCTORS (18 ACTIVE RESIDENTS FROM NOVEMBER 2026 LIST)
+// PERMANENT DEFAULTS (PASSWORD, DAHİLİ NUMBERS, 18 DOCTORS & SCHEDULE)
 // ============================================================================
+const DEFAULT_ADMIN_PIN = '24680+Rad';
+
+const DEFAULT_EXT1_LABEL = 'Rapor odası';
+const DEFAULT_EXT1_NUMBER = '6624';
+
+const DEFAULT_EXT2_LABEL = 'Ultrason çekim odası';
+const DEFAULT_EXT2_NUMBER = '6612';
+
+const DEFAULT_EXT3_LABEL = 'Asistan odası';
+const DEFAULT_EXT3_NUMBER = '6599';
+
 const DEFAULT_DOCTORS: Doctor[] = [
   { id: 'doc-cansu', name: 'Dr. Cansu ŞENGÜL', phone: '+90 541 637 69 37' },
   { id: 'doc-gulceren', name: 'Dr. Gülceren GÖÇER', phone: '+90 534 513 62 08' },
@@ -169,8 +180,8 @@ const DEFAULT_NOVEMBER_2026_SCHEDULE: Record<string, DailyScheduleEntry> = {
 
 const DEFAULT_SHIFT_STATE: ShiftState = {
   singleDoctorMode: false,
-  slot1DoctorId: 'doc-aysenur',
-  slot2DoctorId: 'doc-aysekubra',
+  slot1DoctorId: 'doc-fatma',
+  slot2DoctorId: 'doc-elifozge',
   manualActiveSlot: 1,
   autoScheduleEnabled: false,
   shiftStartTime: '17:00',
@@ -179,21 +190,55 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   manualOverrideSlot: null,
   manualOverridePeriodKey: null,
   manualDoctorOverrideShiftKey: null,
-  adminPin: '1234',
+  adminPin: DEFAULT_ADMIN_PIN,
   lastUpdatedAt: Date.now(),
-  ext1Label: 'BT (Tomografi) Odası',
-  ext1Number: '1234',
-  ext2Label: 'MR Konsolu',
-  ext2Number: '1235',
-  ext3Label: 'Raporlama / Sekreterlik',
-  ext3Number: '1236',
+  ext1Label: DEFAULT_EXT1_LABEL,
+  ext1Number: DEFAULT_EXT1_NUMBER,
+  ext2Label: DEFAULT_EXT2_LABEL,
+  ext2Number: DEFAULT_EXT2_NUMBER,
+  ext3Label: DEFAULT_EXT3_LABEL,
+  ext3Number: DEFAULT_EXT3_NUMBER,
   workHoursModeEnabled: true,
   holidayOverrideDateKey: null,
   monthlySchedule: DEFAULT_NOVEMBER_2026_SCHEDULE
 };
 
-const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v1';
-const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v1';
+// Bumped storage key to v2 so stale localStorage from older versions cannot pollute state
+const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v2';
+const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v2';
+
+// Helper that sanitizes legacy placeholder pins/extensions from older versions
+function sanitizeLegacyShiftData(data: Partial<ShiftState>): ShiftState {
+  const isLegacyPin = !data.adminPin || data.adminPin === '1234';
+  const isLegacyExt1 =
+    !data.ext1Number ||
+    data.ext1Number === '1234' ||
+    data.ext1Label === 'BT (Tomografi) Odası';
+  const isLegacyExt2 =
+    !data.ext2Number ||
+    data.ext2Number === '1235' ||
+    data.ext2Label === 'MR Konsolu';
+  const isLegacyExt3 =
+    !data.ext3Number ||
+    data.ext3Number === '1236' ||
+    data.ext3Label === 'Raporlama / Sekreterlik';
+
+  return {
+    ...DEFAULT_SHIFT_STATE,
+    ...data,
+    adminPin: isLegacyPin ? DEFAULT_ADMIN_PIN : data.adminPin!,
+    ext1Label: isLegacyExt1 ? DEFAULT_EXT1_LABEL : data.ext1Label!,
+    ext1Number: isLegacyExt1 ? DEFAULT_EXT1_NUMBER : data.ext1Number!,
+    ext2Label: isLegacyExt2 ? DEFAULT_EXT2_LABEL : data.ext2Label!,
+    ext2Number: isLegacyExt2 ? DEFAULT_EXT2_NUMBER : data.ext2Number!,
+    ext3Label: isLegacyExt3 ? DEFAULT_EXT3_LABEL : data.ext3Label!,
+    ext3Number: isLegacyExt3 ? DEFAULT_EXT3_NUMBER : data.ext3Number!,
+    monthlySchedule: {
+      ...DEFAULT_NOVEMBER_2026_SCHEDULE,
+      ...(data.monthlySchedule || {})
+    }
+  };
+}
 
 // ============================================================================
 // ROBUST TIME, SCHEDULE & HOLIDAY HELPERS
@@ -425,14 +470,7 @@ export default function App() {
       const saved = localStorage.getItem(LOCAL_STORAGE_SHIFT_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return {
-          ...DEFAULT_SHIFT_STATE,
-          ...parsed,
-          monthlySchedule: {
-            ...DEFAULT_NOVEMBER_2026_SCHEDULE,
-            ...(parsed.monthlySchedule || {})
-          }
-        };
+        return sanitizeLegacyShiftData(parsed);
       }
     } catch (e) {
       console.error('Error reading local shift state:', e);
@@ -451,21 +489,29 @@ export default function App() {
   const [showBackupDoctor, setShowBackupDoctor] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
 
-  const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || 'BT (Tomografi) Odası');
-  const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || '1234');
-  const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || 'MR Konsolu');
-  const [draftExt2Number, setDraftExt2Number] = useState(shiftState.ext2Number || '1235');
-  const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || 'Raporlama / Sekreterlik');
-  const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || '1236');
+  const [draftExt1Label, setDraftExt1Label] = useState(shiftState.ext1Label || DEFAULT_EXT1_LABEL);
+  const [draftExt1Number, setDraftExt1Number] = useState(shiftState.ext1Number || DEFAULT_EXT1_NUMBER);
+  const [draftExt2Label, setDraftExt2Label] = useState(shiftState.ext2Label || DEFAULT_EXT2_LABEL);
+  const [draftExt2Number, setDraftExt2Number] = useState(shiftState.ext2Number || DEFAULT_EXT2_NUMBER);
+  const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || DEFAULT_EXT3_LABEL);
+  const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || DEFAULT_EXT3_NUMBER);
 
+  // Sync draft extension fields whenever shiftState extension values update from Firestore
   useEffect(() => {
-    setDraftExt1Label(shiftState.ext1Label || 'BT (Tomografi) Odası');
-    setDraftExt1Number(shiftState.ext1Number || '');
-    setDraftExt2Label(shiftState.ext2Label || 'MR Konsolu');
-    setDraftExt2Number(shiftState.ext2Number || '');
-    setDraftExt3Label(shiftState.ext3Label || 'Raporlama / Sekreterlik');
-    setDraftExt3Number(shiftState.ext3Number || '');
-  }, [shiftState.lastUpdatedAt]);
+    setDraftExt1Label(shiftState.ext1Label || DEFAULT_EXT1_LABEL);
+    setDraftExt1Number(shiftState.ext1Number || DEFAULT_EXT1_NUMBER);
+    setDraftExt2Label(shiftState.ext2Label || DEFAULT_EXT2_LABEL);
+    setDraftExt2Number(shiftState.ext2Number || DEFAULT_EXT2_NUMBER);
+    setDraftExt3Label(shiftState.ext3Label || DEFAULT_EXT3_LABEL);
+    setDraftExt3Number(shiftState.ext3Number || DEFAULT_EXT3_NUMBER);
+  }, [
+    shiftState.ext1Label,
+    shiftState.ext1Number,
+    shiftState.ext2Label,
+    shiftState.ext2Number,
+    shiftState.ext3Label,
+    shiftState.ext3Number
+  ]);
 
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -506,7 +552,7 @@ export default function App() {
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === LOCAL_STORAGE_SHIFT_KEY && e.newValue) {
         try {
-          setShiftState(JSON.parse(e.newValue));
+          setShiftState(sanitizeLegacyShiftData(JSON.parse(e.newValue)));
         } catch (err) {
           console.error(err);
         }
@@ -524,7 +570,7 @@ export default function App() {
     if (broadcastChannel) {
       broadcastChannel.onmessage = (event) => {
         if (event.data?.type === 'SHIFT_UPDATE') {
-          setShiftState(event.data.payload);
+          setShiftState(sanitizeLegacyShiftData(event.data.payload));
         } else if (event.data?.type === 'ROSTER_UPDATE') {
           setDoctors(event.data.payload);
         }
@@ -580,7 +626,7 @@ export default function App() {
     };
   }, []);
 
-  // 4. Firestore Real-time Snapshot (Merges 18 active residents safely without losing existing data)
+  // 4. Firestore Real-time Snapshot (Protected against accidental default overwrites)
   useEffect(() => {
     if (!db || !user) return;
 
@@ -592,21 +638,46 @@ export default function App() {
       shiftDocRef,
       async (snapshot) => {
         if (snapshot.exists()) {
-          const remoteData = snapshot.data() as ShiftState;
-          const mergedSchedule = {
-            ...DEFAULT_NOVEMBER_2026_SCHEDULE,
-            ...(remoteData.monthlySchedule || {})
-          };
-          const nextShift = {
-            ...DEFAULT_SHIFT_STATE,
-            ...remoteData,
-            monthlySchedule: mergedSchedule
-          };
-          setShiftState(nextShift);
-          localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(nextShift));
-        } else {
+          const remoteData = snapshot.data() as Partial<ShiftState>;
+          const sanitized = sanitizeLegacyShiftData(remoteData);
+
+          setShiftState(sanitized);
+          localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(sanitized));
+
+          // If legacy '1234' pin or old '1234/1235/1236' extensions were still in Firestore, upgrade them once
+          const neededMigration =
+            remoteData.adminPin !== sanitized.adminPin ||
+            remoteData.ext1Number !== sanitized.ext1Number ||
+            remoteData.ext2Number !== sanitized.ext2Number ||
+            remoteData.ext3Number !== sanitized.ext3Number ||
+            remoteData.ext1Label !== sanitized.ext1Label ||
+            remoteData.ext2Label !== sanitized.ext2Label ||
+            remoteData.ext3Label !== sanitized.ext3Label;
+
+          if (neededMigration && !snapshot.metadata.fromCache) {
+            try {
+              await setDoc(
+                shiftDocRef,
+                {
+                  adminPin: sanitized.adminPin,
+                  ext1Label: sanitized.ext1Label,
+                  ext1Number: sanitized.ext1Number,
+                  ext2Label: sanitized.ext2Label,
+                  ext2Number: sanitized.ext2Number,
+                  ext3Label: sanitized.ext3Label,
+                  ext3Number: sanitized.ext3Number,
+                  lastUpdatedAt: Date.now()
+                },
+                { merge: true }
+              );
+            } catch (e) {
+              console.error('Error migrating legacy defaults:', e);
+            }
+          }
+        } else if (!snapshot.metadata.fromCache) {
+          // Only seed if we are certain the document does not exist on the server (not just offline cache)
           try {
-            await setDoc(shiftDocRef, DEFAULT_SHIFT_STATE);
+            await setDoc(shiftDocRef, DEFAULT_SHIFT_STATE, { merge: true });
           } catch (e) {
             console.error('Error seeding shift state:', e);
           }
@@ -624,7 +695,6 @@ export default function App() {
       async (snapshot) => {
         if (snapshot.exists() && Array.isArray(snapshot.data().doctors) && snapshot.data().doctors.length > 0) {
           const remoteDocs = snapshot.data().doctors as Doctor[];
-          // Remove old 4 placeholder test doctors if present, and ensure all 18 real residents exist
           const placeholderNames = new Set(['kerem alkan', 'selin demirci', 'caner ozkan']);
           const filteredRemote = remoteDocs.filter(
             (d) => !placeholderNames.has(normalizePersonName(d.name)) && d.phone !== '+90 532 000 0000'
@@ -645,16 +715,16 @@ export default function App() {
           setDoctors(mergedDocs);
           localStorage.setItem(LOCAL_STORAGE_ROSTER_KEY, JSON.stringify(mergedDocs));
 
-          if (rosterChanged) {
+          if (rosterChanged && !snapshot.metadata.fromCache) {
             try {
-              await setDoc(rosterDocRef, { doctors: mergedDocs, updatedAt: Date.now() });
+              await setDoc(rosterDocRef, { doctors: mergedDocs, updatedAt: Date.now() }, { merge: true });
             } catch (e) {
               console.error('Error syncing merged roster:', e);
             }
           }
-        } else {
+        } else if (!snapshot.metadata.fromCache) {
           try {
-            await setDoc(rosterDocRef, { doctors: DEFAULT_DOCTORS, updatedAt: Date.now() });
+            await setDoc(rosterDocRef, { doctors: DEFAULT_DOCTORS, updatedAt: Date.now() }, { merge: true });
           } catch (e) {
             console.error('Error seeding roster:', e);
           }
@@ -705,7 +775,6 @@ export default function App() {
   const isCurrentShiftManuallyOverridden =
     shiftState.manualDoctorOverrideShiftKey === effectiveShiftDateKey;
 
-  // Resolve Slot 1 & Slot 2 Doctors (Supports both ID match and name match)
   const resolveDoctorByIdOrDef = (docId: string): Doctor | null => {
     const direct = doctors.find((d) => d.id === docId);
     if (direct) return direct;
@@ -762,37 +831,42 @@ export default function App() {
 
   const configuredExtensions = useMemo(() => {
     const list = [
-      { label: shiftState.ext1Label || 'BT (Tomografi) Odası', num: shiftState.ext1Number },
-      { label: shiftState.ext2Label || 'MR Konsolu', num: shiftState.ext2Number },
-      { label: shiftState.ext3Label || 'Raporlama / Sekreterlik', num: shiftState.ext3Number }
+      { label: shiftState.ext1Label || DEFAULT_EXT1_LABEL, num: shiftState.ext1Number || DEFAULT_EXT1_NUMBER },
+      { label: shiftState.ext2Label || DEFAULT_EXT2_LABEL, num: shiftState.ext2Number || DEFAULT_EXT2_NUMBER },
+      { label: shiftState.ext3Label || DEFAULT_EXT3_LABEL, num: shiftState.ext3Number || DEFAULT_EXT3_NUMBER }
     ];
     return list.filter((item) => item.num && item.num.trim().length > 0);
   }, [shiftState]);
 
-  // 7. Persistence & Cloud Sync
+  // 7. Atomic Partial Persistence & Cloud Sync (Never overwrites unrelated fields!)
   const saveShiftUpdate = async (partialUpdate: Partial<ShiftState>) => {
-    const nextState: ShiftState = {
-      ...shiftState,
+    const timestampedUpdate: Partial<ShiftState> = {
       ...partialUpdate,
       lastUpdatedAt: Date.now()
     };
 
-    setShiftState(nextState);
-
-    try {
-      localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(nextState));
-      if (broadcastChannel) {
-        broadcastChannel.postMessage({ type: 'SHIFT_UPDATE', payload: nextState });
+    setShiftState((prev) => {
+      const nextState: ShiftState = {
+        ...prev,
+        ...timestampedUpdate
+      };
+      try {
+        localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(nextState));
+        if (broadcastChannel) {
+          broadcastChannel.postMessage({ type: 'SHIFT_UPDATE', payload: nextState });
+        }
+      } catch (e) {
+        console.error('LocalStorage write error:', e);
       }
-    } catch (e) {
-      console.error('LocalStorage write error:', e);
-    }
+      return nextState;
+    });
 
     if (db && user) {
       const appId = 'radyoloji-yonlendirici';
       const shiftDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'current_shift');
       try {
-        await setDoc(shiftDocRef, nextState);
+        // CRITICAL FIX: Only merge the changed fields so stale tabs can NEVER overwrite adminPin or dahili numbers
+        await setDoc(shiftDocRef, timestampedUpdate, { merge: true });
       } catch (err) {
         console.error('Firestore shift write error:', err);
       }
@@ -820,10 +894,14 @@ export default function App() {
       const appId = 'radyoloji-yonlendirici';
       const rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'department_roster');
       try {
-        await setDoc(rosterDocRef, {
-          doctors: nextDoctors,
-          updatedAt: Date.now()
-        });
+        await setDoc(
+          rosterDocRef,
+          {
+            doctors: nextDoctors,
+            updatedAt: Date.now()
+          },
+          { merge: true }
+        );
       } catch (err) {
         console.error('Firestore roster write error:', err);
       }
@@ -995,7 +1073,7 @@ export default function App() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const expectedPin = shiftState.adminPin || '1234';
+    const expectedPin = shiftState.adminPin || DEFAULT_ADMIN_PIN;
     if (pinInput.trim() === expectedPin) {
       setIsAdminUnlocked(true);
       setViewMode('admin_panel');
@@ -1086,12 +1164,12 @@ export default function App() {
   const handleSaveExtensions = (e: React.FormEvent) => {
     e.preventDefault();
     saveShiftUpdate({
-      ext1Label: draftExt1Label.trim(),
-      ext1Number: draftExt1Number.trim(),
-      ext2Label: draftExt2Label.trim(),
-      ext2Number: draftExt2Number.trim(),
-      ext3Label: draftExt3Label.trim(),
-      ext3Number: draftExt3Number.trim()
+      ext1Label: draftExt1Label.trim() || DEFAULT_EXT1_LABEL,
+      ext1Number: draftExt1Number.trim() || DEFAULT_EXT1_NUMBER,
+      ext2Label: draftExt2Label.trim() || DEFAULT_EXT2_LABEL,
+      ext2Number: draftExt2Number.trim() || DEFAULT_EXT2_NUMBER,
+      ext3Label: draftExt3Label.trim() || DEFAULT_EXT3_LABEL,
+      ext3Number: draftExt3Number.trim() || DEFAULT_EXT3_NUMBER
     });
     showToast('Dahili numaralar kaydedildi!', 'success');
   };
@@ -2279,196 +2357,4 @@ export default function App() {
                         />
                       </div>
                       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                        <span className="text-[10px] font-bold text-cyan-400 uppercase">
-                          3. Dahili Hat
-                        </span>
-                        <input
-                          type="text"
-                          value={draftExt3Label}
-                          onChange={(e) => setDraftExt3Label(e.target.value)}
-                          placeholder="Birim Adı"
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
-                        />
-                        <input
-                          type="text"
-                          value={draftExt3Number}
-                          onChange={(e) => setDraftExt3Number(e.target.value)}
-                          placeholder="No"
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-mono text-cyan-300"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="submit"
-                        className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs cursor-pointer"
-                      >
-                        Dahili Numaraları Kaydet
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Share2 className="w-4 h-4 text-emerald-400" />
-                    <span>WhatsApp Grubunda Paylaş</span>
-                  </h3>
-                  <div className="flex flex-wrap gap-2.5">
-                    <button
-                      onClick={() => {
-                        const msg = generateWhatsAppShareMessage();
-                        window.open(
-                          `https://wa.me/?text=${encodeURIComponent(msg)}`,
-                          '_blank'
-                        );
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 cursor-pointer"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      <span>WhatsApp ile Gönder</span>
-                    </button>
-                    <button
-                      onClick={() =>
-                        copyToClipboard(window.location.href, 'Bağlantı kopyalandı!')
-                      }
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-2 border border-slate-700 cursor-pointer"
-                    >
-                      <Copy className="w-4 h-4 text-emerald-400" />
-                      <span>Bağlantıyı Kopyala</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-3">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-indigo-400" />
-                    <span>Yönetici Şifresini Değiştir</span>
-                  </h3>
-                  <div className="flex items-center gap-2 max-w-xs">
-                    <input
-                      type="password"
-                      value={newPinInput}
-                      onChange={(e) => setNewPinInput(e.target.value)}
-                      placeholder="Yeni Şifre Girin"
-                      maxLength={16}
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      onClick={() => {
-                        if (!newPinInput.trim()) return;
-                        saveShiftUpdate({ adminPin: newPinInput.trim() });
-                        setNewPinInput('');
-                        showToast('Yönetici şifresi güncellendi!', 'success');
-                      }}
-                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0 cursor-pointer"
-                    >
-                      Güncelle
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Micro-Footer Creator Credit */}
-      <footer className="w-full text-center py-6 mt-auto">
-        <p className="text-[11px] font-normal tracking-wide text-slate-600 selection:bg-transparent">
-          Designed with care by Halit{' '}
-          <span className="text-slate-700 mx-1">•</span>{' '}
-          <span className="text-slate-600">Düzce Radyoloji</span>
-        </p>
-      </footer>
-
-      {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center">
-                <Lock className="w-4 h-4 text-indigo-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Yönetici Girişi</h3>
-                <p className="text-xs text-slate-400">Devam etmek için şifrenizi girin</p>
-              </div>
-            </div>
-
-            <form onSubmit={handlePinSubmit} className="space-y-3">
-              <input
-                type="password"
-                autoFocus
-                value={pinInput}
-                onChange={(e) => {
-                  setPinInput(e.target.value);
-                  setPinError('');
-                }}
-                placeholder="Şifrenizi girin"
-                className="w-full text-center text-lg font-mono font-bold rounded-2xl bg-slate-950 border border-slate-700 py-3.5 px-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
-              />
-              {pinError && (
-                <p className="text-xs text-rose-400 text-center font-medium">{pinError}</p>
-              )}
-              <div className="grid grid-cols-2 gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="w-full py-3 rounded-2xl bg-slate-800 text-slate-300 font-semibold text-sm cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm shadow-lg cursor-pointer"
-                >
-                  Giriş Yap
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: BULK IMPORT */}
-      {showBulkModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-white">Toplu Doktor Listesi Ekle</h3>
-              <button
-                onClick={() => setShowBulkModal(false)}
-                className="text-xs text-slate-400 hover:text-white cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
-            <textarea
-              rows={6}
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`Dr. Halit Muhittin, +90 538 551 84 62`}
-              className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowBulkModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-xs text-slate-300 cursor-pointer"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleBulkImport}
-                className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
-              >
-                Listeye Ekle
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                        <span className="text-[10px] font-bold
