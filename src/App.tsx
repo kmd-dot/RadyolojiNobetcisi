@@ -209,19 +209,19 @@ const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v2';
 
 // Helper that sanitizes legacy placeholder pins/extensions from older versions
 function sanitizeLegacyShiftData(data: Partial<ShiftState>): ShiftState {
-  const isLegacyPin = !data.adminPin || data.adminPin === '1234';
+  const isLegacyPin = !data.adminPin || data.adminPin === '24680+Rad';
   const isLegacyExt1 =
     !data.ext1Number ||
-    data.ext1Number === '1234' ||
-    data.ext1Label === 'BT (Tomografi) Odası';
+    data.ext1Number === '6624' ||
+    data.ext1Label === 'Rapor Odası';
   const isLegacyExt2 =
     !data.ext2Number ||
-    data.ext2Number === '1235' ||
-    data.ext2Label === 'MR Konsolu';
+    data.ext2Number === '6612' ||
+    data.ext2Label === 'USG';
   const isLegacyExt3 =
     !data.ext3Number ||
-    data.ext3Number === '1236' ||
-    data.ext3Label === 'Raporlama / Sekreterlik';
+    data.ext3Number === '6599' ||
+    data.ext3Label === 'Asistan Odası';
 
   return {
     ...DEFAULT_SHIFT_STATE,
@@ -2357,4 +2357,196 @@ export default function App() {
                         />
                       </div>
                       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                        <span className="text-[10px] font-bold
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase">
+                          3. Dahili Hat
+                        </span>
+                        <input
+                          type="text"
+                          value={draftExt3Label}
+                          onChange={(e) => setDraftExt3Label(e.target.value)}
+                          placeholder="Birim Adı"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={draftExt3Number}
+                          onChange={(e) => setDraftExt3Number(e.target.value)}
+                          placeholder="No"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-mono text-cyan-300"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs cursor-pointer"
+                      >
+                        Dahili Numaraları Kaydet
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-4">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-emerald-400" />
+                    <span>WhatsApp Grubunda Paylaş</span>
+                  </h3>
+                  <div className="flex flex-wrap gap-2.5">
+                    <button
+                      onClick={() => {
+                        const msg = generateWhatsAppShareMessage();
+                        window.open(
+                          `https://wa.me/?text=${encodeURIComponent(msg)}`,
+                          '_blank'
+                        );
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>WhatsApp ile Gönder</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        copyToClipboard(window.location.href, 'Bağlantı kopyalandı!')
+                      }
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-2 border border-slate-700 cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4 text-emerald-400" />
+                      <span>Bağlantıyı Kopyala</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-3">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-indigo-400" />
+                    <span>Yönetici Şifresini Değiştir</span>
+                  </h3>
+                  <div className="flex items-center gap-2 max-w-xs">
+                    <input
+                      type="password"
+                      value={newPinInput}
+                      onChange={(e) => setNewPinInput(e.target.value)}
+                      placeholder="Yeni Şifre Girin"
+                      maxLength={24}
+                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newPinInput.trim()) return;
+                        saveShiftUpdate({ adminPin: newPinInput.trim() });
+                        setNewPinInput('');
+                        showToast('Yönetici şifresi güncellendi!', 'success');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0 cursor-pointer"
+                    >
+                      Güncelle
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Micro-Footer Creator Credit */}
+      <footer className="w-full text-center py-6 mt-auto">
+        <p className="text-[11px] font-normal tracking-wide text-slate-600 selection:bg-transparent">
+          Designed with care by Halit{' '}
+          <span className="text-slate-700 mx-1">•</span>{' '}
+          <span className="text-slate-600">Düzce Radyoloji</span>
+        </p>
+      </footer>
+
+      {/* MODAL 1: ADMIN PIN LOGIN MODAL */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center">
+                <Lock className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Yönetici Girişi</h3>
+                <p className="text-xs text-slate-400">Devam etmek için şifrenizi girin</p>
+              </div>
+            </div>
+
+            <form onSubmit={handlePinSubmit} className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError('');
+                }}
+                placeholder="Şifrenizi girin"
+                className="w-full text-center text-lg font-mono font-bold rounded-2xl bg-slate-950 border border-slate-700 py-3.5 px-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+              />
+              {pinError && (
+                <p className="text-xs text-rose-400 text-center font-medium">{pinError}</p>
+              )}
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="w-full py-3 rounded-2xl bg-slate-800 text-slate-300 font-semibold text-sm cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm shadow-lg cursor-pointer"
+                >
+                  Giriş Yap
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: BULK IMPORT */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">Toplu Doktor Listesi Ekle</h3>
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="text-xs text-slate-400 hover:text-white cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+            <textarea
+              rows={6}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={`Dr. Halit Muhittin, +90 538 551 84 62`}
+              className="w-full rounded-2xl bg-slate-950 border border-slate-700 p-3.5 text-xs font-mono text-white"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-xs text-slate-300 cursor-pointer"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleBulkImport}
+                className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs cursor-pointer"
+              >
+                Listeye Ekle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
