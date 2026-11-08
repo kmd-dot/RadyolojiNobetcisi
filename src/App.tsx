@@ -203,11 +203,10 @@ const DEFAULT_SHIFT_STATE: ShiftState = {
   monthlySchedule: DEFAULT_NOVEMBER_2026_SCHEDULE
 };
 
-// Bumped storage key to v2 so stale localStorage from older versions cannot pollute state
-const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v2';
-const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v2';
+const LOCAL_STORAGE_SHIFT_KEY = 'radiology_router_shift_state_v3';
+const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v3';
 
-// Helper that sanitizes legacy placeholder pins/extensions from older versions
+// Automatically replaces any old placeholder values ('1234', '1235', '1236', 'BT / MR') with the real hospital defaults
 function sanitizeLegacyShiftData(data: Partial<ShiftState>): ShiftState {
   const isLegacyPin = !data.adminPin || data.adminPin === '1234';
   const isLegacyExt1 =
@@ -496,7 +495,6 @@ export default function App() {
   const [draftExt3Label, setDraftExt3Label] = useState(shiftState.ext3Label || DEFAULT_EXT3_LABEL);
   const [draftExt3Number, setDraftExt3Number] = useState(shiftState.ext3Number || DEFAULT_EXT3_NUMBER);
 
-  // Sync draft extension fields whenever shiftState extension values update from Firestore
   useEffect(() => {
     setDraftExt1Label(shiftState.ext1Label || DEFAULT_EXT1_LABEL);
     setDraftExt1Number(shiftState.ext1Number || DEFAULT_EXT1_NUMBER);
@@ -626,7 +624,7 @@ export default function App() {
     };
   }, []);
 
-  // 4. Firestore Real-time Snapshot (Protected against accidental default overwrites)
+  // 4. READ-ONLY Firestore Real-time Listener (Visitors NEVER write to Firestore on page load!)
   useEffect(() => {
     if (!db || !user) return;
 
@@ -636,51 +634,12 @@ export default function App() {
 
     const unsubShift = onSnapshot(
       shiftDocRef,
-      async (snapshot) => {
+      (snapshot) => {
         if (snapshot.exists()) {
           const remoteData = snapshot.data() as Partial<ShiftState>;
           const sanitized = sanitizeLegacyShiftData(remoteData);
-
           setShiftState(sanitized);
           localStorage.setItem(LOCAL_STORAGE_SHIFT_KEY, JSON.stringify(sanitized));
-
-          // If legacy '1234' pin or old '1234/1235/1236' extensions were still in Firestore, upgrade them once
-          const neededMigration =
-            remoteData.adminPin !== sanitized.adminPin ||
-            remoteData.ext1Number !== sanitized.ext1Number ||
-            remoteData.ext2Number !== sanitized.ext2Number ||
-            remoteData.ext3Number !== sanitized.ext3Number ||
-            remoteData.ext1Label !== sanitized.ext1Label ||
-            remoteData.ext2Label !== sanitized.ext2Label ||
-            remoteData.ext3Label !== sanitized.ext3Label;
-
-          if (neededMigration && !snapshot.metadata.fromCache) {
-            try {
-              await setDoc(
-                shiftDocRef,
-                {
-                  adminPin: sanitized.adminPin,
-                  ext1Label: sanitized.ext1Label,
-                  ext1Number: sanitized.ext1Number,
-                  ext2Label: sanitized.ext2Label,
-                  ext2Number: sanitized.ext2Number,
-                  ext3Label: sanitized.ext3Label,
-                  ext3Number: sanitized.ext3Number,
-                  lastUpdatedAt: Date.now()
-                },
-                { merge: true }
-              );
-            } catch (e) {
-              console.error('Error migrating legacy defaults:', e);
-            }
-          }
-        } else if (!snapshot.metadata.fromCache) {
-          // Only seed if we are certain the document does not exist on the server (not just offline cache)
-          try {
-            await setDoc(shiftDocRef, DEFAULT_SHIFT_STATE, { merge: true });
-          } catch (e) {
-            console.error('Error seeding shift state:', e);
-          }
         }
         setLoading(false);
       },
@@ -692,7 +651,7 @@ export default function App() {
 
     const unsubRoster = onSnapshot(
       rosterDocRef,
-      async (snapshot) => {
+      (snapshot) => {
         if (snapshot.exists() && Array.isArray(snapshot.data().doctors) && snapshot.data().doctors.length > 0) {
           const remoteDocs = snapshot.data().doctors as Doctor[];
           const placeholderNames = new Set(['kerem alkan', 'selin demirci', 'caner ozkan']);
@@ -701,33 +660,16 @@ export default function App() {
           );
 
           const mergedDocs = [...filteredRemote];
-          let rosterChanged = filteredRemote.length !== remoteDocs.length;
-
           DEFAULT_DOCTORS.forEach((defDoc) => {
             const normDef = normalizePersonName(defDoc.name);
             const existingIdx = mergedDocs.findIndex((d) => normalizePersonName(d.name) === normDef);
             if (existingIdx === -1) {
               mergedDocs.push(defDoc);
-              rosterChanged = true;
             }
           });
 
           setDoctors(mergedDocs);
           localStorage.setItem(LOCAL_STORAGE_ROSTER_KEY, JSON.stringify(mergedDocs));
-
-          if (rosterChanged && !snapshot.metadata.fromCache) {
-            try {
-              await setDoc(rosterDocRef, { doctors: mergedDocs, updatedAt: Date.now() }, { merge: true });
-            } catch (e) {
-              console.error('Error syncing merged roster:', e);
-            }
-          }
-        } else if (!snapshot.metadata.fromCache) {
-          try {
-            await setDoc(rosterDocRef, { doctors: DEFAULT_DOCTORS, updatedAt: Date.now() }, { merge: true });
-          } catch (e) {
-            console.error('Error seeding roster:', e);
-          }
         }
       },
       (err) => {
@@ -838,7 +780,7 @@ export default function App() {
     return list.filter((item) => item.num && item.num.trim().length > 0);
   }, [shiftState]);
 
-  // 7. Atomic Partial Persistence & Cloud Sync (Never overwrites unrelated fields!)
+  // 7. Atomic Partial Persistence & Cloud Sync (Only runs when Admin clicks a button!)
   const saveShiftUpdate = async (partialUpdate: Partial<ShiftState>) => {
     const timestampedUpdate: Partial<ShiftState> = {
       ...partialUpdate,
@@ -865,7 +807,6 @@ export default function App() {
       const appId = 'radyoloji-yonlendirici';
       const shiftDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'radiology_router', 'current_shift');
       try {
-        // CRITICAL FIX: Only merge the changed fields so stale tabs can NEVER overwrite adminPin or dahili numbers
         await setDoc(shiftDocRef, timestampedUpdate, { merge: true });
       } catch (err) {
         console.error('Firestore shift write error:', err);
@@ -1074,7 +1015,8 @@ export default function App() {
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const expectedPin = shiftState.adminPin || DEFAULT_ADMIN_PIN;
-    if (pinInput.trim() === expectedPin) {
+    // Allow login with either the saved custom PIN or the master fallback PIN (24680+Rad)
+    if (pinInput.trim() === expectedPin || pinInput.trim() === DEFAULT_ADMIN_PIN) {
       setIsAdminUnlocked(true);
       setViewMode('admin_panel');
       setShowPinModal(false);
