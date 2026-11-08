@@ -209,19 +209,19 @@ const LOCAL_STORAGE_ROSTER_KEY = 'radiology_router_roster_v2';
 
 // Helper that sanitizes legacy placeholder pins/extensions from older versions
 function sanitizeLegacyShiftData(data: Partial<ShiftState>): ShiftState {
-  const isLegacyPin = !data.adminPin || data.adminPin === '24680+Rad';
+  const isLegacyPin = !data.adminPin || data.adminPin === '1234';
   const isLegacyExt1 =
     !data.ext1Number ||
-    data.ext1Number === '6624' ||
-    data.ext1Label === 'Rapor Odası';
+    data.ext1Number === '1234' ||
+    data.ext1Label === 'BT (Tomografi) Odası';
   const isLegacyExt2 =
     !data.ext2Number ||
-    data.ext2Number === '6612' ||
-    data.ext2Label === 'USG';
+    data.ext2Number === '1235' ||
+    data.ext2Label === 'MR Konsolu';
   const isLegacyExt3 =
     !data.ext3Number ||
-    data.ext3Number === '6599' ||
-    data.ext3Label === 'Asistan Odası';
+    data.ext3Number === '1236' ||
+    data.ext3Label === 'Raporlama / Sekreterlik';
 
   return {
     ...DEFAULT_SHIFT_STATE,
